@@ -6,10 +6,6 @@ MuseumEmotionApp is an Android application designed to analyze and record users'
 
 Features
 
-Synchronizes biosignal recordings with a mobile phone camera
-
-Tracks users’ locations in a museum
-
 Stores emotional responses for analysis
 
 Installation
@@ -38,7 +34,7 @@ Start the app and grant necessary permissions.
 
 Connect to the BITalino device.
 
-Record biosignals while viewing artwork.
+Record biosignals by the use of opensignal app while viewing artwork store your records in the app and listen the sound records
 
 Export recorded data for analysis.
 
@@ -57,8 +53,3 @@ Create a new branch.
 Make your changes and commit them.
 
 Open a Pull Request.
-
-License
-
-This project is licensed under the MIT License.
-
