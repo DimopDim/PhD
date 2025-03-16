@@ -101,7 +101,7 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
         }
     }
 
-    // **🔄 Restart progress update when playback state changes**
+    // **Restart progress update when playback state changes**
     LaunchedEffect(isPlaying) {
         while (isPlaying) {
             delay(500)

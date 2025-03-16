@@ -70,14 +70,14 @@ fun logAudioEmotion(
     val userFolder = File(downloadsDir, "MuseumEmotion/$username")
     val logFile = File(userFolder, "audioEmotionLog.txt")
 
-    // ✅ Ensure the directory exists
+    // Ensure the directory exists
     if (!userFolder.exists()) {
         userFolder.mkdirs()
     }
 
     val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
 
-    // ✅ Format timestamps correctly
+    // Format timestamps correctly
     val entryTime = sdf.format(Date(timestampEntry))
     val exitTime = timestampExit?.let { sdf.format(Date(it)) } ?: "N/A"
 
@@ -91,7 +91,7 @@ fun logAudioEmotion(
         FileWriter(logFile, true).use { writer ->
             writer.append(logEntry)
         }
-        println("✅ LOG WRITTEN: $logEntry") // ✅ Debugging Log
+        println("LOG WRITTEN: $logEntry") // Debugging Log
     } catch (e: Exception) {
         e.printStackTrace()
         println("⚠ ERROR: Failed to write log to ${logFile.absolutePath}")

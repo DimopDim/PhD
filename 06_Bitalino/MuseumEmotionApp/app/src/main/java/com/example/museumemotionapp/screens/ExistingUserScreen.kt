@@ -25,13 +25,13 @@ fun ExistingUserScreen(navController: NavController) {
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // ✅ Content wrapped in a centered Column
+        // Content wrapped in a centered Column
         Column(
             modifier = Modifier.weight(1f), // Pushes content to the middle of the screen
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // ✅ Back Button
+            // Back Button
             Button(onClick = { navController.popBackStack() }) {
                 Text("Back / Πίσω")
             }
