@@ -1,79 +1,98 @@
 package com.example.museumemotionapp.screens
 
 import android.os.Environment
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-//import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.example.museumemotionapp.utils.FileUtils.logUserLogin
 import java.io.File
-
-//import androidx.compose.ui.platform.LocalContext
 
 @Composable
 fun ExistingUserScreen(navController: NavController) {
-    var selectedUser by remember { mutableStateOf("") }
-    var userFolders by remember { mutableStateOf(emptyList<String>()) }
-    var dropdownExpanded by remember { mutableStateOf(false) }
-
-    LaunchedEffect(Unit) {
-        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        val museumEmotionFolder = File(downloadsDir, "MuseumEmotion")
-
-        if (museumEmotionFolder.exists()) {
-            userFolders = museumEmotionFolder.list()?.toList() ?: emptyList()
-        }
-    }
+    val users = getExistingUsers()  // Get list of existing users
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Button(onClick = { navController.popBackStack() }) {
-            Text("Back / Πίσω")
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text("Select an Existing User:")
-
-        Box {
-            Button(onClick = { dropdownExpanded = true }) {
-                Text(if (selectedUser.isNotEmpty()) selectedUser else "Select an Account")
+        // ✅ Content wrapped in a centered Column
+        Column(
+            modifier = Modifier.weight(1f), // Pushes content to the middle of the screen
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // ✅ Back Button
+            Button(onClick = { navController.popBackStack() }) {
+                Text("Back / Πίσω")
             }
 
-            DropdownMenu(
-                expanded = dropdownExpanded,
-                onDismissRequest = { dropdownExpanded = false }
-            ) {
-                userFolders.forEach { folder ->
-                    DropdownMenuItem(
-                        text = { Text(folder) },
-                        onClick = {
-                            selectedUser = folder
-                            dropdownExpanded = false
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text("Select an existing user")
+            Text("Επιλέξτε έναν υπάρχοντα χρήστη")
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (users.isEmpty()) {
+                Text("No existing users found!")
+                Text("Δεν βρέθηκαν χρήστες!")
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(300.dp) // Set a fixed height to keep it centered
+                ) {
+                    items(users) { username ->
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(8.dp)
+                                .clickable {
+                                    navController.navigate("artworkSelection/$username")
+                                }
+                        ) {
+                            Text(
+                                text = username,
+                                modifier = Modifier.padding(16.dp)
+                            )
                         }
-                    )
+                    }
                 }
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Button(onClick = {
-            if (selectedUser.isNotEmpty()) {
-                logUserLogin(selectedUser)  // Log user login inside user's own folder
-                navController.navigate("artworkSelection/$selectedUser")
-            }
-        }) {
-            Text("Continue / Επόμενο")
-        }
+        // Footer (Copyright Text)
+        Text(
+            text = "© 2025 MMAI Team | University of the Aegean",
+            color = Color.Gray,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp)
+        )
+    }
+}
+
+// Function to get existing users from "Download/MuseumEmotion/"
+fun getExistingUsers(): List<String> {
+    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+    val museumEmotionFolder = File(downloadsDir, "MuseumEmotion")
+
+    return if (museumEmotionFolder.exists()) {
+        museumEmotionFolder.list()?.toList() ?: emptyList()
+    } else {
+        emptyList()
     }
 }
