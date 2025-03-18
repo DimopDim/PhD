@@ -26,7 +26,7 @@ Logging System: Logs user interactions with timestamps (clickOnArtwork.txt).
 
 
 
-🛠️ Tech Stack
+Tech Stack
 
 Language: Kotlin (Jetpack Compose)
 
