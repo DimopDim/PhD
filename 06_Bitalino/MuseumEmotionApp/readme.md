@@ -1,12 +1,12 @@
-# Museum Emotion App
+#Museum Emotion App
 
-## Description
+##Description
 
 Museum Emotion App is an Android application designed for an experiment to record the emotions produced when people observe artworks. The recordings of the application will be combined with the recordings of the bitalino using the opensignal application which will record the biosignals (EMG, ECG, EDA, ACC) and logs user interactions while they explore artworks in a museum.
 
 
 
-Features
+##Features
 
 User Authentication: Users can create an account or log in.
 
