@@ -42,7 +42,7 @@ Installation
 
 Clone the repository:
 
-git clone https://github.com/yourusername/museum-emotion-app.git
+git clone 06_Bitalino/MuseumEmotionApp
 
 Open in Android Studio.
 
