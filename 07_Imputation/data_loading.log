@@ -1,0 +1,12 @@
+2025-03-22 22:45:19,777 - INFO - Starting the data loading process from o3_hour_overlap_window...
+2025-03-22 22:45:19,780 - INFO - Loading MIMIC-IV datasets
+2025-03-22 22:45:26,749 - INFO - Loaded mimic_mean_df successfully.
+2025-03-22 22:45:33,528 - INFO - Loaded mimic_median_df successfully.
+2025-03-22 22:45:39,862 - INFO - Loaded mimic_min_df successfully.
+2025-03-22 22:45:46,661 - INFO - Loaded mimic_max_df successfully.
+2025-03-22 22:45:46,662 - INFO - Loading eICU datasets
+2025-03-22 22:45:49,153 - INFO - Loaded eicu_mean_df successfully.
+2025-03-22 22:45:51,433 - INFO - Loaded eicu_median_df successfully.
+2025-03-22 22:45:53,600 - INFO - Loaded eicu_min_df successfully.
+2025-03-22 22:45:55,657 - INFO - Loaded eicu_max_df successfully.
+2025-03-22 22:45:55,658 - INFO - Data loading process completed.
