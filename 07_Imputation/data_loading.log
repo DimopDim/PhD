@@ -1,320 +1,321 @@
-2025-03-22 22:45:19,777 - INFO - Starting the data loading process from o3_hour_overlap_window...
-2025-03-22 22:45:19,780 - INFO - Loading MIMIC-IV datasets
-2025-03-22 22:45:26,749 - INFO - Loaded mimic_mean_df successfully.
-2025-03-22 22:45:33,528 - INFO - Loaded mimic_median_df successfully.
-2025-03-22 22:45:39,862 - INFO - Loaded mimic_min_df successfully.
-2025-03-22 22:45:46,661 - INFO - Loaded mimic_max_df successfully.
-2025-03-22 22:45:46,662 - INFO - Loading eICU datasets
-2025-03-22 22:45:49,153 - INFO - Loaded eicu_mean_df successfully.
-2025-03-22 22:45:51,433 - INFO - Loaded eicu_median_df successfully.
-2025-03-22 22:45:53,600 - INFO - Loaded eicu_min_df successfully.
-2025-03-22 22:45:55,657 - INFO - Loaded eicu_max_df successfully.
-2025-03-22 22:45:55,658 - INFO - Data loading process completed.
-2025-03-22 22:58:54,523 - INFO - Starting the data loading process from o3_hour_overlap_window...
-2025-03-22 22:58:54,527 - INFO - Loading MIMIC-IV datasets
-2025-03-22 22:59:01,336 - INFO - Loaded mimic_mean_df successfully.
-2025-03-22 22:59:08,644 - INFO - Loaded mimic_median_df successfully.
-2025-03-22 22:59:15,686 - INFO - Loaded mimic_min_df successfully.
-2025-03-22 22:59:22,705 - INFO - Loaded mimic_max_df successfully.
-2025-03-22 22:59:22,706 - INFO - Loading eICU datasets
-2025-03-22 22:59:25,073 - INFO - Loaded eicu_mean_df successfully.
-2025-03-22 22:59:27,170 - INFO - Loaded eicu_median_df successfully.
-2025-03-22 22:59:29,176 - INFO - Loaded eicu_min_df successfully.
-2025-03-22 22:59:31,292 - INFO - Loaded eicu_max_df successfully.
-2025-03-22 22:59:31,294 - INFO - Data loading process completed.
-2025-03-22 23:01:09,329 - INFO - Starting the chunk-based merging process for MIMIC-IV dataframes.
-2025-03-22 23:01:09,330 - INFO - Processing chunk 1...
-2025-03-22 23:01:09,332 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:09,593 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:09,594 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:09,846 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:09,847 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:10,129 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:10,130 - INFO - Processing chunk 2...
-2025-03-22 23:01:10,131 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:10,382 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:10,383 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:10,684 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:10,685 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:10,985 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:10,986 - INFO - Processing chunk 3...
-2025-03-22 23:01:10,988 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:11,237 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:11,238 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:11,500 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:11,501 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:11,783 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:11,784 - INFO - Processing chunk 4...
-2025-03-22 23:01:11,785 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:12,010 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:12,011 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:12,283 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:12,284 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:12,565 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:12,566 - INFO - Processing chunk 5...
-2025-03-22 23:01:12,567 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:12,804 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:12,805 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:13,071 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:13,072 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:13,380 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:13,381 - INFO - Processing chunk 6...
-2025-03-22 23:01:13,382 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:13,614 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:13,615 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:13,880 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:13,881 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:14,159 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:14,160 - INFO - Processing chunk 7...
-2025-03-22 23:01:14,161 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:14,398 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:14,399 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:14,650 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:14,651 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:14,920 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:14,921 - INFO - Processing chunk 8...
-2025-03-22 23:01:14,922 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:15,178 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:15,179 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:15,464 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:15,465 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:15,746 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:15,747 - INFO - Processing chunk 9...
-2025-03-22 23:01:15,748 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:15,977 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:15,978 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:16,221 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:16,222 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:16,492 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:16,493 - INFO - Processing chunk 10...
-2025-03-22 23:01:16,494 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:16,716 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:16,717 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:16,964 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:16,965 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:17,239 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:17,239 - INFO - Processing chunk 11...
-2025-03-22 23:01:17,241 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:17,456 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:17,457 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:17,715 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:17,716 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:17,979 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:17,980 - INFO - Processing chunk 12...
-2025-03-22 23:01:17,981 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:18,213 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:18,214 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:18,466 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:18,467 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:18,732 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:18,733 - INFO - Processing chunk 13...
-2025-03-22 23:01:18,734 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:18,949 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:18,951 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:19,195 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:19,197 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:19,455 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:19,456 - INFO - Processing chunk 14...
-2025-03-22 23:01:19,457 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:19,672 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:19,673 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:19,919 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:19,920 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:20,179 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:20,180 - INFO - Processing chunk 15...
-2025-03-22 23:01:20,181 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:20,400 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:20,401 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:20,649 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:20,650 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:20,911 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:20,912 - INFO - Processing chunk 16...
-2025-03-22 23:01:20,913 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:21,132 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:21,133 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:21,383 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:21,384 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:21,673 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:21,674 - INFO - Processing chunk 17...
-2025-03-22 23:01:21,677 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:21,914 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:21,915 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:22,179 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:22,180 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:22,457 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:22,458 - INFO - Processing chunk 18...
-2025-03-22 23:01:22,460 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:22,688 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:22,689 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:22,948 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:22,949 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:23,219 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:23,220 - INFO - Processing chunk 19...
-2025-03-22 23:01:23,221 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:23,432 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:23,434 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:23,694 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:23,695 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:23,972 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:23,973 - INFO - Processing chunk 20...
-2025-03-22 23:01:23,975 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:24,198 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:24,200 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:24,451 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:24,452 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:24,711 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:24,712 - INFO - Processing chunk 21...
-2025-03-22 23:01:24,713 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:24,936 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:24,937 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:25,185 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:25,186 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:25,449 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:25,450 - INFO - Processing chunk 22...
-2025-03-22 23:01:25,451 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:25,669 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:25,671 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:25,929 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:25,930 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:26,194 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:26,195 - INFO - Processing chunk 23...
-2025-03-22 23:01:26,196 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:26,435 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:26,436 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:26,701 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:26,702 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:26,982 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:26,983 - INFO - Processing chunk 24...
-2025-03-22 23:01:26,984 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:27,215 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:27,216 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:27,461 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:27,462 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:27,732 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:27,733 - INFO - Processing chunk 25...
-2025-03-22 23:01:27,734 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:27,975 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:27,976 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:28,246 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:28,247 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:28,515 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:28,516 - INFO - Processing chunk 26...
-2025-03-22 23:01:28,517 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:28,748 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:28,749 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:29,005 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:29,006 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:29,274 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:29,275 - INFO - Processing chunk 27...
-2025-03-22 23:01:29,276 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:29,500 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:29,501 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:29,757 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:29,758 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:30,027 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:30,028 - INFO - Processing chunk 28...
-2025-03-22 23:01:30,029 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:30,244 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:30,246 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:30,496 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:30,497 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:30,757 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:30,758 - INFO - Processing chunk 29...
-2025-03-22 23:01:30,759 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:31,012 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:31,013 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:31,277 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:31,278 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:31,562 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:31,563 - INFO - Processing chunk 30...
-2025-03-22 23:01:31,564 - INFO - Merging with mimic_median_df...
-2025-03-22 23:01:31,762 - INFO - Merged chunk with mimic_median_df successfully.
-2025-03-22 23:01:31,764 - INFO - Merging with mimic_min_df...
-2025-03-22 23:01:31,968 - INFO - Merged chunk with mimic_min_df successfully.
-2025-03-22 23:01:31,969 - INFO - Merging with mimic_max_df...
-2025-03-22 23:01:32,173 - INFO - Merged chunk with mimic_max_df successfully.
-2025-03-22 23:01:32,173 - INFO - Concatenating all merged chunks...
-2025-03-22 23:01:32,803 - INFO - Concatenated all chunks successfully.
-2025-03-22 23:01:32,804 - INFO - Replacing suffixes in column names...
-2025-03-22 23:01:32,836 - INFO - Replaced suffixes successfully.
-2025-03-22 23:01:32,837 - INFO - Reordering columns: moving 'hospital_expire_flag' and 'los' to the end...
-2025-03-22 23:01:34,886 - INFO - Reordered columns successfully.
-2025-03-22 23:01:34,887 - INFO - Renaming the last two columns to preserve original names...
-2025-03-22 23:01:34,889 - INFO - Renamed the last two columns successfully.
-2025-03-22 23:01:34,890 - INFO - Chunk-based merging process for MIMIC-IV dataframes completed successfully.
-2025-03-22 23:02:06,544 - INFO - Starting chunk-wise processing of merged_mimic_df.
-2025-03-22 23:02:08,987 - INFO - Processing chunk 1/10...
-2025-03-22 23:02:09,110 - INFO - Chunk 1/10 processed successfully.
-2025-03-22 23:02:09,111 - INFO - Processing chunk 2/10...
-2025-03-22 23:02:09,228 - INFO - Chunk 2/10 processed successfully.
-2025-03-22 23:02:09,229 - INFO - Processing chunk 3/10...
-2025-03-22 23:02:09,340 - INFO - Chunk 3/10 processed successfully.
-2025-03-22 23:02:09,341 - INFO - Processing chunk 4/10...
-2025-03-22 23:02:09,453 - INFO - Chunk 4/10 processed successfully.
-2025-03-22 23:02:09,454 - INFO - Processing chunk 5/10...
-2025-03-22 23:02:09,559 - INFO - Chunk 5/10 processed successfully.
-2025-03-22 23:02:09,560 - INFO - Processing chunk 6/10...
-2025-03-22 23:02:09,668 - INFO - Chunk 6/10 processed successfully.
-2025-03-22 23:02:09,669 - INFO - Processing chunk 7/10...
-2025-03-22 23:02:09,779 - INFO - Chunk 7/10 processed successfully.
-2025-03-22 23:02:09,780 - INFO - Processing chunk 8/10...
-2025-03-22 23:02:09,890 - INFO - Chunk 8/10 processed successfully.
-2025-03-22 23:02:09,891 - INFO - Processing chunk 9/10...
-2025-03-22 23:02:10,003 - INFO - Chunk 9/10 processed successfully.
-2025-03-22 23:02:10,004 - INFO - Processing chunk 10/10...
-2025-03-22 23:02:10,113 - INFO - Chunk 10/10 processed successfully.
-2025-03-22 23:02:10,888 - INFO - All chunks processed and concatenated successfully.
-2025-03-22 23:02:38,380 - INFO - Starting chunk-wise processing of Braden components.
-2025-03-22 23:02:41,051 - INFO - Processing chunk 1/10...
-2025-03-22 23:02:41,187 - INFO - Chunk 1/10 processed successfully.
-2025-03-22 23:02:41,189 - INFO - Processing chunk 2/10...
-2025-03-22 23:02:41,341 - INFO - Chunk 2/10 processed successfully.
-2025-03-22 23:02:41,342 - INFO - Processing chunk 3/10...
-2025-03-22 23:02:41,484 - INFO - Chunk 3/10 processed successfully.
-2025-03-22 23:02:41,485 - INFO - Processing chunk 4/10...
-2025-03-22 23:02:41,619 - INFO - Chunk 4/10 processed successfully.
-2025-03-22 23:02:41,620 - INFO - Processing chunk 5/10...
-2025-03-22 23:02:41,758 - INFO - Chunk 5/10 processed successfully.
-2025-03-22 23:02:41,759 - INFO - Processing chunk 6/10...
-2025-03-22 23:02:41,887 - INFO - Chunk 6/10 processed successfully.
-2025-03-22 23:02:41,888 - INFO - Processing chunk 7/10...
-2025-03-22 23:02:42,020 - INFO - Chunk 7/10 processed successfully.
-2025-03-22 23:02:42,021 - INFO - Processing chunk 8/10...
-2025-03-22 23:02:42,147 - INFO - Chunk 8/10 processed successfully.
-2025-03-22 23:02:42,148 - INFO - Processing chunk 9/10...
-2025-03-22 23:02:42,274 - INFO - Chunk 9/10 processed successfully.
-2025-03-22 23:02:42,275 - INFO - Processing chunk 10/10...
-2025-03-22 23:02:42,412 - INFO - Chunk 10/10 processed successfully.
-2025-03-22 23:02:43,152 - INFO - All chunks processed and concatenated successfully.
-2025-03-22 23:04:16,385 - INFO - Starting the pH column processing.
-2025-03-22 23:04:16,532 - INFO - Calculating 'pH (Max)' column.
-2025-03-22 23:04:59,228 - INFO - Calculating 'pH (Mean)' column.
-2025-03-22 23:05:40,445 - INFO - Calculating 'pH (Median)' column.
-2025-03-22 23:06:21,719 - INFO - Calculating 'pH (Min)' column.
-2025-03-22 23:07:01,789 - INFO - Dropping original pH columns.
-2025-03-22 23:07:01,835 - INFO - pH column processing completed successfully.
-2025-03-22 23:08:03,695 - INFO - Starting the merging process for eICU dataframes.
-2025-03-22 23:08:03,697 - INFO - Merging eicu_meam_df and eicu_median_df...
-2025-03-22 23:08:03,946 - INFO - Merged eicu_meam_df and eicu_median_df successfully.
-2025-03-22 23:08:03,947 - INFO - Merging with eicu_min_df...
-2025-03-22 23:08:04,393 - INFO - Merged with eicu_min_df successfully.
-2025-03-22 23:08:04,394 - INFO - Merging with eicu_max_df...
-2025-03-22 23:08:05,004 - INFO - Merged with eicu_max_df successfully.
-2025-03-22 23:08:05,006 - INFO - Reordering columns: moving 'unitdischargestatus' and 'LOS' to the end...
-2025-03-22 23:08:05,703 - INFO - Reordered columns successfully.
-2025-03-22 23:08:05,704 - INFO - Renaming the last two columns to preserve original names...
-2025-03-22 23:08:05,705 - INFO - Renamed the last two columns successfully.
-2025-03-22 23:08:05,707 - INFO - Merging process for eICU dataframes completed successfully.
-2025-03-22 23:08:57,589 - INFO - Starting the processing of bedside glucose columns in eicu_temp.
-2025-03-22 23:08:57,667 - INFO - Calculating 'bedside_glucose (Max)' column.
-2025-03-22 23:10:02,906 - INFO - Calculating 'bedside_glucose (Mean)' column.
-2025-03-22 23:11:09,312 - INFO - Calculating 'bedside_glucose (Median)' column.
-2025-03-22 23:12:15,566 - INFO - Calculating 'bedside_glucose (Min)' column.
-2025-03-22 23:13:22,081 - INFO - Dropping original bedside glucose columns.
-2025-03-22 23:13:22,148 - INFO - Replacing spaces and commas in column names with underscores.
-2025-03-22 23:13:22,150 - INFO - Processing of bedside glucose columns completed successfully.
-2025-03-22 23:15:01,021 - INFO - Starting the export of Mimic DataFrame to a CSV file.
-2025-03-22 23:15:01,023 - INFO - Directory CSV/exports/whole_set does not exist. Creating it.
-2025-03-22 23:15:13,629 - INFO - DataFrame successfully exported to CSV/exports/whole_set/o3_hour_overlap_window_mimic.csv.
-2025-03-22 23:15:32,763 - INFO - Starting the export of eICU DataFrame to a CSV file.
-2025-03-22 23:15:50,251 - INFO - DataFrame successfully exported to CSV/exports/whole_set/o3_hour_overlap_window_eicu.csv.
+2025-03-23 00:01:55,220 - INFO - Loading... -> o1_X_external.csv
+2025-03-23 00:02:02,381 - INFO - Loading... -> o1_X_test.csv
+2025-03-23 00:02:02,930 - INFO - Loading... -> o1_X_train.csv
+2025-03-23 00:02:07,032 - INFO - Loading... -> o1_X_validate.csv
+2025-03-23 00:02:07,531 - INFO - Loading... -> o1_y_external_los.csv
+2025-03-23 00:02:07,574 - INFO - Loading... -> o1_y_external_mortality.csv
+2025-03-23 00:02:07,603 - INFO - Loading... -> o1_y_test_los.csv
+2025-03-23 00:02:07,612 - INFO - Loading... -> o1_y_test_mortality.csv
+2025-03-23 00:02:07,617 - INFO - Loading... -> o1_y_train_los.csv
+2025-03-23 00:02:07,654 - INFO - Loading... -> o1_y_train_mortality.csv
+2025-03-23 00:02:07,672 - INFO - Loading... -> o1_y_validate_los.csv
+2025-03-23 00:02:07,681 - INFO - Loading... -> o1_y_validate_mortality.csv
+2025-03-23 00:02:07,686 - INFO - Loading... -> o2_X_external.csv
+2025-03-23 00:02:11,190 - INFO - Loading... -> o2_X_test.csv
+2025-03-23 00:02:11,456 - INFO - Loading... -> o2_X_train.csv
+2025-03-23 00:02:13,410 - INFO - Loading... -> o2_X_validate.csv
+2025-03-23 00:02:13,674 - INFO - Loading... -> o2_y_external_los.csv
+2025-03-23 00:02:13,696 - INFO - Loading... -> o2_y_external_mortality.csv
+2025-03-23 00:02:13,713 - INFO - Loading... -> o2_y_test_los.csv
+2025-03-23 00:02:13,719 - INFO - Loading... -> o2_y_test_mortality.csv
+2025-03-23 00:02:13,724 - INFO - Loading... -> o2_y_train_los.csv
+2025-03-23 00:02:13,745 - INFO - Loading... -> o2_y_train_mortality.csv
+2025-03-23 00:02:13,755 - INFO - Loading... -> o2_y_validate_los.csv
+2025-03-23 00:02:13,761 - INFO - Loading... -> o2_y_validate_mortality.csv
+2025-03-23 00:02:13,765 - INFO - Loading... -> o3_X_external.csv
+2025-03-23 00:02:16,046 - INFO - Loading... -> o3_X_test.csv
+2025-03-23 00:02:16,234 - INFO - Loading... -> o3_X_train.csv
+2025-03-23 00:02:17,613 - INFO - Loading... -> o3_X_validate.csv
+2025-03-23 00:02:17,804 - INFO - Loading... -> o3_y_external_los.csv
+2025-03-23 00:02:17,821 - INFO - Loading... -> o3_y_external_mortality.csv
+2025-03-23 00:02:17,834 - INFO - Loading... -> o3_y_test_los.csv
+2025-03-23 00:02:17,839 - INFO - Loading... -> o3_y_test_mortality.csv
+2025-03-23 00:02:17,843 - INFO - Loading... -> o3_y_train_los.csv
+2025-03-23 00:02:17,859 - INFO - Loading... -> o3_y_train_mortality.csv
+2025-03-23 00:02:17,866 - INFO - Loading... -> o3_y_validate_los.csv
+2025-03-23 00:02:17,872 - INFO - Loading... -> o3_y_validate_mortality.csv
+2025-03-23 00:02:17,875 - INFO - Loading... -> o4_X_external.csv
+2025-03-23 00:02:19,612 - INFO - Loading... -> o4_X_test.csv
+2025-03-23 00:02:19,762 - INFO - Loading... -> o4_X_train.csv
+2025-03-23 00:02:20,735 - INFO - Loading... -> o4_X_validate.csv
+2025-03-23 00:02:20,878 - INFO - Loading... -> o4_y_external_los.csv
+2025-03-23 00:02:20,893 - INFO - Loading... -> o4_y_external_mortality.csv
+2025-03-23 00:02:20,903 - INFO - Loading... -> o4_y_test_los.csv
+2025-03-23 00:02:20,907 - INFO - Loading... -> o4_y_test_mortality.csv
+2025-03-23 00:02:20,910 - INFO - Loading... -> o4_y_train_los.csv
+2025-03-23 00:02:20,923 - INFO - Loading... -> o4_y_train_mortality.csv
+2025-03-23 00:02:20,929 - INFO - Loading... -> o4_y_validate_los.csv
+2025-03-23 00:02:20,933 - INFO - Loading... -> o4_y_validate_mortality.csv
+2025-03-23 00:02:20,938 - INFO - o1_X_external loaded successfully with shape (234720, 345)
+2025-03-23 00:02:20,939 - INFO - o1_X_test loaded successfully with shape (15312, 345)
+2025-03-23 00:02:20,940 - INFO - o1_X_train loaded successfully with shape (122496, 345)
+2025-03-23 00:02:20,941 - INFO - o1_X_validate loaded successfully with shape (15312, 345)
+2025-03-23 00:02:20,942 - INFO - o1_y_external_los loaded successfully with shape (234720, 1)
+2025-03-23 00:02:20,943 - INFO - o1_y_external_mortality loaded successfully with shape (234720, 1)
+2025-03-23 00:02:20,944 - INFO - o1_y_test_los loaded successfully with shape (15312, 1)
+2025-03-23 00:02:20,944 - INFO - o1_y_test_mortality loaded successfully with shape (15312, 1)
+2025-03-23 00:02:20,946 - INFO - o1_y_train_los loaded successfully with shape (122496, 1)
+2025-03-23 00:02:20,946 - INFO - o1_y_train_mortality loaded successfully with shape (122496, 1)
+2025-03-23 00:02:20,947 - INFO - o1_y_validate_los loaded successfully with shape (15312, 1)
+2025-03-23 00:02:20,948 - INFO - o1_y_validate_mortality loaded successfully with shape (15312, 1)
+2025-03-23 00:02:20,948 - INFO - o2_X_external loaded successfully with shape (117360, 345)
+2025-03-23 00:02:20,949 - INFO - o2_X_test loaded successfully with shape (7656, 345)
+2025-03-23 00:02:20,950 - INFO - o2_X_train loaded successfully with shape (61248, 345)
+2025-03-23 00:02:20,952 - INFO - o2_X_validate loaded successfully with shape (7656, 345)
+2025-03-23 00:02:20,953 - INFO - o2_y_external_los loaded successfully with shape (117360, 1)
+2025-03-23 00:02:20,954 - INFO - o2_y_external_mortality loaded successfully with shape (117360, 1)
+2025-03-23 00:02:20,955 - INFO - o2_y_test_los loaded successfully with shape (7656, 1)
+2025-03-23 00:02:20,955 - INFO - o2_y_test_mortality loaded successfully with shape (7656, 1)
+2025-03-23 00:02:20,956 - INFO - o2_y_train_los loaded successfully with shape (61248, 1)
+2025-03-23 00:02:20,957 - INFO - o2_y_train_mortality loaded successfully with shape (61248, 1)
+2025-03-23 00:02:20,960 - INFO - o2_y_validate_los loaded successfully with shape (7656, 1)
+2025-03-23 00:02:20,960 - INFO - o2_y_validate_mortality loaded successfully with shape (7656, 1)
+2025-03-23 00:02:20,961 - INFO - o3_X_external loaded successfully with shape (78240, 345)
+2025-03-23 00:02:20,962 - INFO - o3_X_test loaded successfully with shape (5104, 345)
+2025-03-23 00:02:20,963 - INFO - o3_X_train loaded successfully with shape (40832, 345)
+2025-03-23 00:02:20,964 - INFO - o3_X_validate loaded successfully with shape (5104, 345)
+2025-03-23 00:02:20,965 - INFO - o3_y_external_los loaded successfully with shape (78240, 1)
+2025-03-23 00:02:20,966 - INFO - o3_y_external_mortality loaded successfully with shape (78240, 1)
+2025-03-23 00:02:20,966 - INFO - o3_y_test_los loaded successfully with shape (5104, 1)
+2025-03-23 00:02:20,968 - INFO - o3_y_test_mortality loaded successfully with shape (5104, 1)
+2025-03-23 00:02:20,969 - INFO - o3_y_train_los loaded successfully with shape (40832, 1)
+2025-03-23 00:02:20,970 - INFO - o3_y_train_mortality loaded successfully with shape (40832, 1)
+2025-03-23 00:02:20,971 - INFO - o3_y_validate_los loaded successfully with shape (5104, 1)
+2025-03-23 00:02:20,972 - INFO - o3_y_validate_mortality loaded successfully with shape (5104, 1)
+2025-03-23 00:02:20,972 - INFO - o4_X_external loaded successfully with shape (58680, 345)
+2025-03-23 00:02:20,973 - INFO - o4_X_test loaded successfully with shape (3828, 345)
+2025-03-23 00:02:20,974 - INFO - o4_X_train loaded successfully with shape (30624, 345)
+2025-03-23 00:02:20,975 - INFO - o4_X_validate loaded successfully with shape (3828, 345)
+2025-03-23 00:02:20,977 - INFO - o4_y_external_los loaded successfully with shape (58680, 1)
+2025-03-23 00:02:20,977 - INFO - o4_y_external_mortality loaded successfully with shape (58680, 1)
+2025-03-23 00:02:20,978 - INFO - o4_y_test_los loaded successfully with shape (3828, 1)
+2025-03-23 00:02:20,979 - INFO - o4_y_test_mortality loaded successfully with shape (3828, 1)
+2025-03-23 00:02:20,980 - INFO - o4_y_train_los loaded successfully with shape (30624, 1)
+2025-03-23 00:02:20,980 - INFO - o4_y_train_mortality loaded successfully with shape (30624, 1)
+2025-03-23 00:02:20,981 - INFO - o4_y_validate_los loaded successfully with shape (3828, 1)
+2025-03-23 00:02:20,983 - INFO - o4_y_validate_mortality loaded successfully with shape (3828, 1)
+2025-03-23 00:02:20,986 - INFO - Load Complete.
+2025-03-23 00:02:20,996 - INFO - o1_X_external types:
+float32    345
+Name: count, dtype: int64
+2025-03-23 00:02:20,999 - INFO - o1_X_test types:
+float32    345
+Name: count, dtype: int64
+2025-03-23 00:02:21,001 - INFO - o1_X_train types:
+float32    345
+Name: count, dtype: int64
+2025-03-23 00:02:21,005 - INFO - o1_X_validate types:
+float32    345
+Name: count, dtype: int64
+2025-03-23 00:02:21,008 - INFO - o1_y_external_los types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,010 - INFO - o1_y_external_mortality types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,012 - INFO - o1_y_test_los types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,014 - INFO - o1_y_test_mortality types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,017 - INFO - o1_y_train_los types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,019 - INFO - o1_y_train_mortality types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,020 - INFO - o1_y_validate_los types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,026 - INFO - o1_y_validate_mortality types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,030 - INFO - o2_X_external types:
+float32    345
+Name: count, dtype: int64
+2025-03-23 00:02:21,031 - INFO - o2_X_test types:
+float32    345
+Name: count, dtype: int64
+2025-03-23 00:02:21,033 - INFO - o2_X_train types:
+float32    345
+Name: count, dtype: int64
+2025-03-23 00:02:21,035 - INFO - o2_X_validate types:
+float32    345
+Name: count, dtype: int64
+2025-03-23 00:02:21,038 - INFO - o2_y_external_los types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,041 - INFO - o2_y_external_mortality types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,043 - INFO - o2_y_test_los types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,044 - INFO - o2_y_test_mortality types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,046 - INFO - o2_y_train_los types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,048 - INFO - o2_y_train_mortality types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,049 - INFO - o2_y_validate_los types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,051 - INFO - o2_y_validate_mortality types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,055 - INFO - o3_X_external types:
+float32    345
+Name: count, dtype: int64
+2025-03-23 00:02:21,057 - INFO - o3_X_test types:
+float32    345
+Name: count, dtype: int64
+2025-03-23 00:02:21,059 - INFO - o3_X_train types:
+float32    345
+Name: count, dtype: int64
+2025-03-23 00:02:21,060 - INFO - o3_X_validate types:
+float32    345
+Name: count, dtype: int64
+2025-03-23 00:02:21,063 - INFO - o3_y_external_los types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,064 - INFO - o3_y_external_mortality types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,066 - INFO - o3_y_test_los types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,067 - INFO - o3_y_test_mortality types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,070 - INFO - o3_y_train_los types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,071 - INFO - o3_y_train_mortality types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,073 - INFO - o3_y_validate_los types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,075 - INFO - o3_y_validate_mortality types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,077 - INFO - o4_X_external types:
+float32    345
+Name: count, dtype: int64
+2025-03-23 00:02:21,078 - INFO - o4_X_test types:
+float32    345
+Name: count, dtype: int64
+2025-03-23 00:02:21,080 - INFO - o4_X_train types:
+float32    345
+Name: count, dtype: int64
+2025-03-23 00:02:21,081 - INFO - o4_X_validate types:
+float32    345
+Name: count, dtype: int64
+2025-03-23 00:02:21,083 - INFO - o4_y_external_los types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,085 - INFO - o4_y_external_mortality types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,086 - INFO - o4_y_test_los types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,088 - INFO - o4_y_test_mortality types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,089 - INFO - o4_y_train_los types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,091 - INFO - o4_y_train_mortality types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,093 - INFO - o4_y_validate_los types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,094 - INFO - o4_y_validate_mortality types:
+float32    1
+Name: count, dtype: int64
+2025-03-23 00:02:21,280 - INFO - o1_X_external: 39527616 missing values across 308 columns
+2025-03-23 00:02:21,295 - INFO - o1_X_test: 1985664 missing values across 292 columns
+2025-03-23 00:02:21,385 - INFO - o1_X_train: 15876288 missing values across 304 columns
+2025-03-23 00:02:21,399 - INFO - o1_X_validate: 2007696 missing values across 296 columns
+2025-03-23 00:02:21,402 - INFO - o1_y_external_los: 0 missing values across 0 columns
+2025-03-23 00:02:21,404 - INFO - o1_y_external_mortality: 0 missing values across 0 columns
+2025-03-23 00:02:21,406 - INFO - o1_y_test_los: 0 missing values across 0 columns
+2025-03-23 00:02:21,408 - INFO - o1_y_test_mortality: 0 missing values across 0 columns
+2025-03-23 00:02:21,410 - INFO - o1_y_train_los: 0 missing values across 0 columns
+2025-03-23 00:02:21,412 - INFO - o1_y_train_mortality: 0 missing values across 0 columns
+2025-03-23 00:02:21,414 - INFO - o1_y_validate_los: 0 missing values across 0 columns
+2025-03-23 00:02:21,416 - INFO - o1_y_validate_mortality: 0 missing values across 0 columns
+2025-03-23 00:02:21,501 - INFO - o2_X_external: 19763572 missing values across 308 columns
+2025-03-23 00:02:21,510 - INFO - o2_X_test: 992832 missing values across 292 columns
+2025-03-23 00:02:21,556 - INFO - o2_X_train: 7938144 missing values across 304 columns
+2025-03-23 00:02:21,565 - INFO - o2_X_validate: 1003848 missing values across 296 columns
+2025-03-23 00:02:21,567 - INFO - o2_y_external_los: 0 missing values across 0 columns
+2025-03-23 00:02:21,569 - INFO - o2_y_external_mortality: 0 missing values across 0 columns
+2025-03-23 00:02:21,571 - INFO - o2_y_test_los: 0 missing values across 0 columns
+2025-03-23 00:02:21,573 - INFO - o2_y_test_mortality: 0 missing values across 0 columns
+2025-03-23 00:02:21,575 - INFO - o2_y_train_los: 0 missing values across 0 columns
+2025-03-23 00:02:21,577 - INFO - o2_y_train_mortality: 0 missing values across 0 columns
+2025-03-23 00:02:21,579 - INFO - o2_y_validate_los: 0 missing values across 0 columns
+2025-03-23 00:02:21,581 - INFO - o2_y_validate_mortality: 0 missing values across 0 columns
+2025-03-23 00:02:21,640 - INFO - o3_X_external: 13175808 missing values across 308 columns
+2025-03-23 00:02:21,646 - INFO - o3_X_test: 661888 missing values across 292 columns
+2025-03-23 00:02:21,678 - INFO - o3_X_train: 5292096 missing values across 304 columns
+2025-03-23 00:02:21,685 - INFO - o3_X_validate: 669232 missing values across 296 columns
+2025-03-23 00:02:21,687 - INFO - o3_y_external_los: 0 missing values across 0 columns
+2025-03-23 00:02:21,689 - INFO - o3_y_external_mortality: 0 missing values across 0 columns
+2025-03-23 00:02:21,691 - INFO - o3_y_test_los: 0 missing values across 0 columns
+2025-03-23 00:02:21,693 - INFO - o3_y_test_mortality: 0 missing values across 0 columns
+2025-03-23 00:02:21,695 - INFO - o3_y_train_los: 0 missing values across 0 columns
+2025-03-23 00:02:21,697 - INFO - o3_y_train_mortality: 0 missing values across 0 columns
+2025-03-23 00:02:21,698 - INFO - o3_y_validate_los: 0 missing values across 0 columns
+2025-03-23 00:02:21,700 - INFO - o3_y_validate_mortality: 0 missing values across 0 columns
+2025-03-23 00:02:21,744 - INFO - o4_X_external: 9881900 missing values across 308 columns
+2025-03-23 00:02:21,750 - INFO - o4_X_test: 496416 missing values across 292 columns
+2025-03-23 00:02:21,775 - INFO - o4_X_train: 3969072 missing values across 304 columns
+2025-03-23 00:02:21,781 - INFO - o4_X_validate: 501924 missing values across 296 columns
+2025-03-23 00:02:21,783 - INFO - o4_y_external_los: 0 missing values across 0 columns
+2025-03-23 00:02:21,785 - INFO - o4_y_external_mortality: 0 missing values across 0 columns
+2025-03-23 00:02:21,787 - INFO - o4_y_test_los: 0 missing values across 0 columns
+2025-03-23 00:02:21,788 - INFO - o4_y_test_mortality: 0 missing values across 0 columns
+2025-03-23 00:02:21,790 - INFO - o4_y_train_los: 0 missing values across 0 columns
+2025-03-23 00:02:21,793 - INFO - o4_y_train_mortality: 0 missing values across 0 columns
+2025-03-23 00:02:21,795 - INFO - o4_y_validate_los: 0 missing values across 0 columns
+2025-03-23 00:02:21,796 - INFO - o4_y_validate_mortality: 0 missing values across 0 columns
+2025-03-23 00:02:21,810 - INFO - o1_y_external_los unique target values: {'los': 830}
+2025-03-23 00:02:21,815 - INFO - o1_y_external_mortality unique target values: {'hospital_expire_flag': 2}
+2025-03-23 00:02:21,817 - INFO - o1_y_test_los unique target values: {'los': 319}
+2025-03-23 00:02:21,820 - INFO - o1_y_test_mortality unique target values: {'hospital_expire_flag': 2}
+2025-03-23 00:02:21,823 - INFO - o1_y_train_los unique target values: {'los': 2548}
+2025-03-23 00:02:21,826 - INFO - o1_y_train_mortality unique target values: {'hospital_expire_flag': 2}
+2025-03-23 00:02:21,828 - INFO - o1_y_validate_los unique target values: {'los': 319}
+2025-03-23 00:02:21,829 - INFO - o1_y_validate_mortality unique target values: {'hospital_expire_flag': 2}
+2025-03-23 00:02:21,832 - INFO - o2_y_external_los unique target values: {'los': 830}
+2025-03-23 00:02:21,835 - INFO - o2_y_external_mortality unique target values: {'hospital_expire_flag': 2}
+2025-03-23 00:02:21,837 - INFO - o2_y_test_los unique target values: {'los': 319}
+2025-03-23 00:02:21,839 - INFO - o2_y_test_mortality unique target values: {'hospital_expire_flag': 2}
+2025-03-23 00:02:21,841 - INFO - o2_y_train_los unique target values: {'los': 2548}
+2025-03-23 00:02:21,843 - INFO - o2_y_train_mortality unique target values: {'hospital_expire_flag': 2}
+2025-03-23 00:02:21,845 - INFO - o2_y_validate_los unique target values: {'los': 319}
+2025-03-23 00:02:21,846 - INFO - o2_y_validate_mortality unique target values: {'hospital_expire_flag': 2}
+2025-03-23 00:02:21,848 - INFO - o3_y_external_los unique target values: {'los': 830}
+2025-03-23 00:02:21,850 - INFO - o3_y_external_mortality unique target values: {'hospital_expire_flag': 2}
+2025-03-23 00:02:21,852 - INFO - o3_y_test_los unique target values: {'los': 319}
+2025-03-23 00:02:21,854 - INFO - o3_y_test_mortality unique target values: {'hospital_expire_flag': 2}
+2025-03-23 00:02:21,856 - INFO - o3_y_train_los unique target values: {'los': 2548}
+2025-03-23 00:02:21,857 - INFO - o3_y_train_mortality unique target values: {'hospital_expire_flag': 2}
+2025-03-23 00:02:21,859 - INFO - o3_y_validate_los unique target values: {'los': 319}
+2025-03-23 00:02:21,860 - INFO - o3_y_validate_mortality unique target values: {'hospital_expire_flag': 2}
+2025-03-23 00:02:21,862 - INFO - o4_y_external_los unique target values: {'los': 830}
+2025-03-23 00:02:21,864 - INFO - o4_y_external_mortality unique target values: {'hospital_expire_flag': 2}
+2025-03-23 00:02:21,865 - INFO - o4_y_test_los unique target values: {'los': 319}
+2025-03-23 00:02:21,867 - INFO - o4_y_test_mortality unique target values: {'hospital_expire_flag': 2}
+2025-03-23 00:02:21,869 - INFO - o4_y_train_los unique target values: {'los': 2548}
+2025-03-23 00:02:21,870 - INFO - o4_y_train_mortality unique target values: {'hospital_expire_flag': 2}
+2025-03-23 00:02:21,871 - INFO - o4_y_validate_los unique target values: {'los': 319}
+2025-03-23 00:02:21,873 - INFO - o4_y_validate_mortality unique target values: {'hospital_expire_flag': 2}
