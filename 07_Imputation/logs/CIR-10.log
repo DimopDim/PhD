@@ -1,0 +1,18 @@
+2025-05-03 14:24:52,384 - INFO - Switched logging to logs/CIR-10.log
+2025-05-03 14:24:52,385 - INFO - This is being logged to CIR-10.log
+2025-05-03 14:24:52,408 - INFO - Generating plots for: o1_X_external
+2025-05-03 14:24:56,598 - INFO - Generating plots for: o2_X_external
+2025-05-03 14:25:00,462 - INFO - Generating plots for: o4_X_external
+2025-05-03 14:25:04,734 - INFO - Generating plots for: o3_X_external
+2025-05-03 14:25:09,100 - INFO - Generating plots for: o3_X_validate
+2025-05-03 14:25:13,115 - INFO - Generating plots for: o1_X_validate
+2025-05-03 14:25:17,172 - INFO - Generating plots for: o2_X_validate
+2025-05-03 14:25:21,406 - INFO - Generating plots for: o4_X_validate
+2025-05-03 14:25:25,743 - INFO - Generating plots for: o3_X_test
+2025-05-03 14:25:29,692 - INFO - Generating plots for: o1_X_test
+2025-05-03 14:25:33,690 - INFO - Generating plots for: o2_X_test
+2025-05-03 14:25:37,817 - INFO - Generating plots for: o4_X_test
+2025-05-03 14:25:41,998 - INFO - Generating plots for: o3_X_train
+2025-05-03 14:25:46,052 - INFO - Generating plots for: o1_X_train
+2025-05-03 14:25:50,088 - INFO - Generating plots for: o2_X_train
+2025-05-03 14:25:54,053 - INFO - Generating plots for: o4_X_train

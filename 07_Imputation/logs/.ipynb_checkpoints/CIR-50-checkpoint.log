@@ -1,0 +1,8 @@
+2025-05-03 14:28:50,663 - INFO - Switched logging to logs/CIR-50.log
+2025-05-03 14:28:50,664 - INFO - This is being logged to CIR-50.log
+2025-05-03 14:28:54,022 - INFO - Processing group: survive
+2025-05-03 14:28:54,414 - INFO - Saved observed ranges for survive
+2025-05-03 14:29:03,848 - INFO - Saved extreme values for survive
+2025-05-03 14:29:03,852 - INFO - Processing group: non_survive
+2025-05-03 14:29:03,930 - INFO - Saved observed ranges for non_survive
+2025-05-03 14:29:10,946 - INFO - Saved extreme values for non_survive

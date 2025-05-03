@@ -1,0 +1,7 @@
+2025-05-03 14:25:58,270 - INFO - Switched logging to logs/CIR-11.log
+2025-05-03 14:25:58,271 - INFO - This is being logged to CIR-11.log
+2025-05-03 14:25:58,288 - INFO - Processing suffix: (Mean)
+2025-05-03 14:28:36,166 - INFO - Processing suffix: (Mean)
+2025-05-03 14:28:36,610 - INFO - Processing suffix: (Median)
+2025-05-03 14:28:37,071 - INFO - Processing suffix: (Min)
+2025-05-03 14:28:37,680 - INFO - Processing suffix: (Max)

@@ -1,339 +1,338 @@
-2025-03-24 00:16:33,318 - INFO - ++++++++++++++++++++++++++++++++++++++++++
-2025-03-24 00:16:33,321 - INFO - Start Loading Dataframes.
-2025-03-24 00:16:33,322 - INFO - Loading... -> o1_X_external.csv
-2025-03-24 00:16:58,320 - INFO - ++++++++++++++++++++++++++++++++++++++++++
-2025-03-24 00:16:58,323 - INFO - Start Loading Dataframes.
-2025-03-24 00:16:58,325 - INFO - Loading... -> o1_X_external.csv
-2025-03-24 00:17:05,477 - INFO - Loading... -> o1_X_test.csv
-2025-03-24 00:17:05,979 - INFO - Loading... -> o1_X_train.csv
-2025-03-24 00:17:10,088 - INFO - Loading... -> o1_X_validate.csv
-2025-03-24 00:17:10,608 - INFO - Loading... -> o1_y_external_los.csv
-2025-03-24 00:17:10,652 - INFO - Loading... -> o1_y_external_mortality.csv
-2025-03-24 00:17:10,681 - INFO - Loading... -> o1_y_test_los.csv
-2025-03-24 00:17:10,690 - INFO - Loading... -> o1_y_test_mortality.csv
-2025-03-24 00:17:10,695 - INFO - Loading... -> o1_y_train_los.csv
-2025-03-24 00:17:10,732 - INFO - Loading... -> o1_y_train_mortality.csv
-2025-03-24 00:17:10,749 - INFO - Loading... -> o1_y_validate_los.csv
-2025-03-24 00:17:10,759 - INFO - Loading... -> o1_y_validate_mortality.csv
-2025-03-24 00:17:10,763 - INFO - Loading... -> o2_X_external.csv
-2025-03-24 00:17:14,411 - INFO - Loading... -> o2_X_test.csv
-2025-03-24 00:17:14,686 - INFO - Loading... -> o2_X_train.csv
-2025-03-24 00:17:16,813 - INFO - Loading... -> o2_X_validate.csv
-2025-03-24 00:17:17,089 - INFO - Loading... -> o2_y_external_los.csv
-2025-03-24 00:17:17,113 - INFO - Loading... -> o2_y_external_mortality.csv
-2025-03-24 00:17:17,131 - INFO - Loading... -> o2_y_test_los.csv
-2025-03-24 00:17:17,137 - INFO - Loading... -> o2_y_test_mortality.csv
-2025-03-24 00:17:17,141 - INFO - Loading... -> o2_y_train_los.csv
-2025-03-24 00:17:17,165 - INFO - Loading... -> o2_y_train_mortality.csv
-2025-03-24 00:17:17,175 - INFO - Loading... -> o2_y_validate_los.csv
-2025-03-24 00:17:17,182 - INFO - Loading... -> o2_y_validate_mortality.csv
-2025-03-24 00:17:17,187 - INFO - Loading... -> o3_X_external.csv
-2025-03-24 00:17:19,534 - INFO - Loading... -> o3_X_test.csv
-2025-03-24 00:17:19,719 - INFO - Loading... -> o3_X_train.csv
-2025-03-24 00:17:21,034 - INFO - Loading... -> o3_X_validate.csv
-2025-03-24 00:17:21,235 - INFO - Loading... -> o3_y_external_los.csv
-2025-03-24 00:17:21,251 - INFO - Loading... -> o3_y_external_mortality.csv
-2025-03-24 00:17:21,265 - INFO - Loading... -> o3_y_test_los.csv
-2025-03-24 00:17:21,270 - INFO - Loading... -> o3_y_test_mortality.csv
-2025-03-24 00:17:21,273 - INFO - Loading... -> o3_y_train_los.csv
-2025-03-24 00:17:21,289 - INFO - Loading... -> o3_y_train_mortality.csv
-2025-03-24 00:17:21,297 - INFO - Loading... -> o3_y_validate_los.csv
-2025-03-24 00:17:21,301 - INFO - Loading... -> o3_y_validate_mortality.csv
-2025-03-24 00:17:21,305 - INFO - Loading... -> o4_X_external.csv
-2025-03-24 00:17:23,147 - INFO - Loading... -> o4_X_test.csv
-2025-03-24 00:17:23,312 - INFO - Loading... -> o4_X_train.csv
-2025-03-24 00:17:24,487 - INFO - Loading... -> o4_X_validate.csv
-2025-03-24 00:17:24,661 - INFO - Loading... -> o4_y_external_los.csv
-2025-03-24 00:17:24,677 - INFO - Loading... -> o4_y_external_mortality.csv
-2025-03-24 00:17:24,691 - INFO - Loading... -> o4_y_test_los.csv
-2025-03-24 00:17:24,697 - INFO - Loading... -> o4_y_test_mortality.csv
-2025-03-24 00:17:24,700 - INFO - Loading... -> o4_y_train_los.csv
-2025-03-24 00:17:24,715 - INFO - Loading... -> o4_y_train_mortality.csv
-2025-03-24 00:17:24,721 - INFO - Loading... -> o4_y_validate_los.csv
-2025-03-24 00:17:24,726 - INFO - Loading... -> o4_y_validate_mortality.csv
-2025-03-24 00:17:24,730 - INFO - o1_X_external loaded successfully with shape (234720, 345)
-2025-03-24 00:17:24,731 - INFO - o1_X_test loaded successfully with shape (15312, 345)
-2025-03-24 00:17:24,732 - INFO - o1_X_train loaded successfully with shape (122496, 345)
-2025-03-24 00:17:24,733 - INFO - o1_X_validate loaded successfully with shape (15312, 345)
-2025-03-24 00:17:24,734 - INFO - o1_y_external_los loaded successfully with shape (234720, 1)
-2025-03-24 00:17:24,736 - INFO - o1_y_external_mortality loaded successfully with shape (234720, 1)
-2025-03-24 00:17:24,737 - INFO - o1_y_test_los loaded successfully with shape (15312, 1)
-2025-03-24 00:17:24,738 - INFO - o1_y_test_mortality loaded successfully with shape (15312, 1)
-2025-03-24 00:17:24,739 - INFO - o1_y_train_los loaded successfully with shape (122496, 1)
-2025-03-24 00:17:24,740 - INFO - o1_y_train_mortality loaded successfully with shape (122496, 1)
-2025-03-24 00:17:24,742 - INFO - o1_y_validate_los loaded successfully with shape (15312, 1)
-2025-03-24 00:17:24,743 - INFO - o1_y_validate_mortality loaded successfully with shape (15312, 1)
-2025-03-24 00:17:24,745 - INFO - o2_X_external loaded successfully with shape (117360, 345)
-2025-03-24 00:17:24,746 - INFO - o2_X_test loaded successfully with shape (7656, 345)
-2025-03-24 00:17:24,746 - INFO - o2_X_train loaded successfully with shape (61248, 345)
-2025-03-24 00:17:24,748 - INFO - o2_X_validate loaded successfully with shape (7656, 345)
-2025-03-24 00:17:24,749 - INFO - o2_y_external_los loaded successfully with shape (117360, 1)
-2025-03-24 00:17:24,750 - INFO - o2_y_external_mortality loaded successfully with shape (117360, 1)
-2025-03-24 00:17:24,751 - INFO - o2_y_test_los loaded successfully with shape (7656, 1)
-2025-03-24 00:17:24,752 - INFO - o2_y_test_mortality loaded successfully with shape (7656, 1)
-2025-03-24 00:17:24,753 - INFO - o2_y_train_los loaded successfully with shape (61248, 1)
-2025-03-24 00:17:24,754 - INFO - o2_y_train_mortality loaded successfully with shape (61248, 1)
-2025-03-24 00:17:24,756 - INFO - o2_y_validate_los loaded successfully with shape (7656, 1)
-2025-03-24 00:17:24,757 - INFO - o2_y_validate_mortality loaded successfully with shape (7656, 1)
-2025-03-24 00:17:24,758 - INFO - o3_X_external loaded successfully with shape (78240, 345)
-2025-03-24 00:17:24,760 - INFO - o3_X_test loaded successfully with shape (5104, 345)
-2025-03-24 00:17:24,761 - INFO - o3_X_train loaded successfully with shape (40832, 345)
-2025-03-24 00:17:24,761 - INFO - o3_X_validate loaded successfully with shape (5104, 345)
-2025-03-24 00:17:24,763 - INFO - o3_y_external_los loaded successfully with shape (78240, 1)
-2025-03-24 00:17:24,764 - INFO - o3_y_external_mortality loaded successfully with shape (78240, 1)
-2025-03-24 00:17:24,766 - INFO - o3_y_test_los loaded successfully with shape (5104, 1)
-2025-03-24 00:17:24,767 - INFO - o3_y_test_mortality loaded successfully with shape (5104, 1)
-2025-03-24 00:17:24,768 - INFO - o3_y_train_los loaded successfully with shape (40832, 1)
-2025-03-24 00:17:24,769 - INFO - o3_y_train_mortality loaded successfully with shape (40832, 1)
-2025-03-24 00:17:24,769 - INFO - o3_y_validate_los loaded successfully with shape (5104, 1)
-2025-03-24 00:17:24,770 - INFO - o3_y_validate_mortality loaded successfully with shape (5104, 1)
-2025-03-24 00:17:24,771 - INFO - o4_X_external loaded successfully with shape (58680, 345)
-2025-03-24 00:17:24,772 - INFO - o4_X_test loaded successfully with shape (3828, 345)
-2025-03-24 00:17:24,774 - INFO - o4_X_train loaded successfully with shape (30624, 345)
-2025-03-24 00:17:24,775 - INFO - o4_X_validate loaded successfully with shape (3828, 345)
-2025-03-24 00:17:24,776 - INFO - o4_y_external_los loaded successfully with shape (58680, 1)
-2025-03-24 00:17:24,777 - INFO - o4_y_external_mortality loaded successfully with shape (58680, 1)
-2025-03-24 00:17:24,778 - INFO - o4_y_test_los loaded successfully with shape (3828, 1)
-2025-03-24 00:17:24,779 - INFO - o4_y_test_mortality loaded successfully with shape (3828, 1)
-2025-03-24 00:17:24,779 - INFO - o4_y_train_los loaded successfully with shape (30624, 1)
-2025-03-24 00:17:24,780 - INFO - o4_y_train_mortality loaded successfully with shape (30624, 1)
-2025-03-24 00:17:24,781 - INFO - o4_y_validate_los loaded successfully with shape (3828, 1)
-2025-03-24 00:17:24,782 - INFO - o4_y_validate_mortality loaded successfully with shape (3828, 1)
-2025-03-24 00:17:24,783 - INFO - Load Complete.
-2025-03-24 00:17:24,784 - INFO - ++++++++++++++++++++++++++++++++++++++++++
-2025-03-24 00:17:24,793 - INFO - ++++++++++++++++++++++++++++++++++++++++++
-2025-03-24 00:17:24,797 - INFO - Check Datatypes...
-2025-03-24 00:17:24,802 - INFO - o1_X_external types:
+2025-05-03 14:24:21,353 - INFO - Switched logging to logs/CIR-8.log
+2025-05-03 14:24:21,356 - INFO - This is being logged to CIR-8.log
+2025-05-03 14:24:21,372 - INFO - ++++++++++++++++++CIR-1++++++++++++++++++++++++
+2025-05-03 14:24:21,373 - INFO - Start Loading Dataframes.
+2025-05-03 14:24:21,374 - INFO - Loading... -> o1_X_external.csv
+2025-05-03 14:24:28,552 - INFO - Loading... -> o1_X_test.csv
+2025-05-03 14:24:29,082 - INFO - Loading... -> o1_X_train.csv
+2025-05-03 14:24:33,147 - INFO - Loading... -> o1_X_validate.csv
+2025-05-03 14:24:33,665 - INFO - Loading... -> o1_y_external_los.csv
+2025-05-03 14:24:33,709 - INFO - Loading... -> o1_y_external_mortality.csv
+2025-05-03 14:24:33,738 - INFO - Loading... -> o1_y_test_los.csv
+2025-05-03 14:24:33,748 - INFO - Loading... -> o1_y_test_mortality.csv
+2025-05-03 14:24:33,753 - INFO - Loading... -> o1_y_train_los.csv
+2025-05-03 14:24:33,789 - INFO - Loading... -> o1_y_train_mortality.csv
+2025-05-03 14:24:33,806 - INFO - Loading... -> o1_y_validate_los.csv
+2025-05-03 14:24:33,816 - INFO - Loading... -> o1_y_validate_mortality.csv
+2025-05-03 14:24:33,821 - INFO - Loading... -> o2_X_external.csv
+2025-05-03 14:24:37,580 - INFO - Loading... -> o2_X_test.csv
+2025-05-03 14:24:37,865 - INFO - Loading... -> o2_X_train.csv
+2025-05-03 14:24:39,944 - INFO - Loading... -> o2_X_validate.csv
+2025-05-03 14:24:40,243 - INFO - Loading... -> o2_y_external_los.csv
+2025-05-03 14:24:40,268 - INFO - Loading... -> o2_y_external_mortality.csv
+2025-05-03 14:24:40,286 - INFO - Loading... -> o2_y_test_los.csv
+2025-05-03 14:24:40,293 - INFO - Loading... -> o2_y_test_mortality.csv
+2025-05-03 14:24:40,298 - INFO - Loading... -> o2_y_train_los.csv
+2025-05-03 14:24:40,322 - INFO - Loading... -> o2_y_train_mortality.csv
+2025-05-03 14:24:40,332 - INFO - Loading... -> o2_y_validate_los.csv
+2025-05-03 14:24:40,339 - INFO - Loading... -> o2_y_validate_mortality.csv
+2025-05-03 14:24:40,343 - INFO - Loading... -> o3_X_external.csv
+2025-05-03 14:24:42,819 - INFO - Loading... -> o3_X_test.csv
+2025-05-03 14:24:43,040 - INFO - Loading... -> o3_X_train.csv
+2025-05-03 14:24:44,451 - INFO - Loading... -> o3_X_validate.csv
+2025-05-03 14:24:44,654 - INFO - Loading... -> o3_y_external_los.csv
+2025-05-03 14:24:44,671 - INFO - Loading... -> o3_y_external_mortality.csv
+2025-05-03 14:24:44,684 - INFO - Loading... -> o3_y_test_los.csv
+2025-05-03 14:24:44,688 - INFO - Loading... -> o3_y_test_mortality.csv
+2025-05-03 14:24:44,692 - INFO - Loading... -> o3_y_train_los.csv
+2025-05-03 14:24:44,708 - INFO - Loading... -> o3_y_train_mortality.csv
+2025-05-03 14:24:44,716 - INFO - Loading... -> o3_y_validate_los.csv
+2025-05-03 14:24:44,721 - INFO - Loading... -> o3_y_validate_mortality.csv
+2025-05-03 14:24:44,724 - INFO - Loading... -> o4_X_external.csv
+2025-05-03 14:24:46,563 - INFO - Loading... -> o4_X_test.csv
+2025-05-03 14:24:46,719 - INFO - Loading... -> o4_X_train.csv
+2025-05-03 14:24:47,807 - INFO - Loading... -> o4_X_validate.csv
+2025-05-03 14:24:47,976 - INFO - Loading... -> o4_y_external_los.csv
+2025-05-03 14:24:47,993 - INFO - Loading... -> o4_y_external_mortality.csv
+2025-05-03 14:24:48,004 - INFO - Loading... -> o4_y_test_los.csv
+2025-05-03 14:24:48,009 - INFO - Loading... -> o4_y_test_mortality.csv
+2025-05-03 14:24:48,014 - INFO - Loading... -> o4_y_train_los.csv
+2025-05-03 14:24:48,029 - INFO - Loading... -> o4_y_train_mortality.csv
+2025-05-03 14:24:48,035 - INFO - Loading... -> o4_y_validate_los.csv
+2025-05-03 14:24:48,039 - INFO - Loading... -> o4_y_validate_mortality.csv
+2025-05-03 14:24:48,043 - INFO - o1_X_external loaded successfully with shape (234720, 345)
+2025-05-03 14:24:48,045 - INFO - o1_X_test loaded successfully with shape (15312, 345)
+2025-05-03 14:24:48,046 - INFO - o1_X_train loaded successfully with shape (122496, 345)
+2025-05-03 14:24:48,047 - INFO - o1_X_validate loaded successfully with shape (15312, 345)
+2025-05-03 14:24:48,048 - INFO - o1_y_external_los loaded successfully with shape (234720, 1)
+2025-05-03 14:24:48,049 - INFO - o1_y_external_mortality loaded successfully with shape (234720, 1)
+2025-05-03 14:24:48,050 - INFO - o1_y_test_los loaded successfully with shape (15312, 1)
+2025-05-03 14:24:48,051 - INFO - o1_y_test_mortality loaded successfully with shape (15312, 1)
+2025-05-03 14:24:48,052 - INFO - o1_y_train_los loaded successfully with shape (122496, 1)
+2025-05-03 14:24:48,052 - INFO - o1_y_train_mortality loaded successfully with shape (122496, 1)
+2025-05-03 14:24:48,053 - INFO - o1_y_validate_los loaded successfully with shape (15312, 1)
+2025-05-03 14:24:48,054 - INFO - o1_y_validate_mortality loaded successfully with shape (15312, 1)
+2025-05-03 14:24:48,055 - INFO - o2_X_external loaded successfully with shape (117360, 345)
+2025-05-03 14:24:48,055 - INFO - o2_X_test loaded successfully with shape (7656, 345)
+2025-05-03 14:24:48,056 - INFO - o2_X_train loaded successfully with shape (61248, 345)
+2025-05-03 14:24:48,057 - INFO - o2_X_validate loaded successfully with shape (7656, 345)
+2025-05-03 14:24:48,058 - INFO - o2_y_external_los loaded successfully with shape (117360, 1)
+2025-05-03 14:24:48,059 - INFO - o2_y_external_mortality loaded successfully with shape (117360, 1)
+2025-05-03 14:24:48,060 - INFO - o2_y_test_los loaded successfully with shape (7656, 1)
+2025-05-03 14:24:48,062 - INFO - o2_y_test_mortality loaded successfully with shape (7656, 1)
+2025-05-03 14:24:48,062 - INFO - o2_y_train_los loaded successfully with shape (61248, 1)
+2025-05-03 14:24:48,063 - INFO - o2_y_train_mortality loaded successfully with shape (61248, 1)
+2025-05-03 14:24:48,065 - INFO - o2_y_validate_los loaded successfully with shape (7656, 1)
+2025-05-03 14:24:48,065 - INFO - o2_y_validate_mortality loaded successfully with shape (7656, 1)
+2025-05-03 14:24:48,066 - INFO - o3_X_external loaded successfully with shape (78240, 345)
+2025-05-03 14:24:48,067 - INFO - o3_X_test loaded successfully with shape (5104, 345)
+2025-05-03 14:24:48,068 - INFO - o3_X_train loaded successfully with shape (40832, 345)
+2025-05-03 14:24:48,068 - INFO - o3_X_validate loaded successfully with shape (5104, 345)
+2025-05-03 14:24:48,069 - INFO - o3_y_external_los loaded successfully with shape (78240, 1)
+2025-05-03 14:24:48,070 - INFO - o3_y_external_mortality loaded successfully with shape (78240, 1)
+2025-05-03 14:24:48,070 - INFO - o3_y_test_los loaded successfully with shape (5104, 1)
+2025-05-03 14:24:48,071 - INFO - o3_y_test_mortality loaded successfully with shape (5104, 1)
+2025-05-03 14:24:48,072 - INFO - o3_y_train_los loaded successfully with shape (40832, 1)
+2025-05-03 14:24:48,073 - INFO - o3_y_train_mortality loaded successfully with shape (40832, 1)
+2025-05-03 14:24:48,073 - INFO - o3_y_validate_los loaded successfully with shape (5104, 1)
+2025-05-03 14:24:48,074 - INFO - o3_y_validate_mortality loaded successfully with shape (5104, 1)
+2025-05-03 14:24:48,075 - INFO - o4_X_external loaded successfully with shape (58680, 345)
+2025-05-03 14:24:48,075 - INFO - o4_X_test loaded successfully with shape (3828, 345)
+2025-05-03 14:24:48,076 - INFO - o4_X_train loaded successfully with shape (30624, 345)
+2025-05-03 14:24:48,077 - INFO - o4_X_validate loaded successfully with shape (3828, 345)
+2025-05-03 14:24:48,078 - INFO - o4_y_external_los loaded successfully with shape (58680, 1)
+2025-05-03 14:24:48,078 - INFO - o4_y_external_mortality loaded successfully with shape (58680, 1)
+2025-05-03 14:24:48,079 - INFO - o4_y_test_los loaded successfully with shape (3828, 1)
+2025-05-03 14:24:48,080 - INFO - o4_y_test_mortality loaded successfully with shape (3828, 1)
+2025-05-03 14:24:48,081 - INFO - o4_y_train_los loaded successfully with shape (30624, 1)
+2025-05-03 14:24:48,081 - INFO - o4_y_train_mortality loaded successfully with shape (30624, 1)
+2025-05-03 14:24:48,082 - INFO - o4_y_validate_los loaded successfully with shape (3828, 1)
+2025-05-03 14:24:48,083 - INFO - o4_y_validate_mortality loaded successfully with shape (3828, 1)
+2025-05-03 14:24:48,084 - INFO - Load Complete.
+2025-05-03 14:24:48,084 - INFO - ++++++++++++++++++++++++++++++++++++++++++
+2025-05-03 14:24:48,094 - INFO - ++++++++++++++++++++++++++++++++++++++++++
+2025-05-03 14:24:48,095 - INFO - Check Datatypes...
+2025-05-03 14:24:48,101 - INFO - o1_X_external types:
 float32    345
 Name: count, dtype: int64
-2025-03-24 00:17:24,805 - INFO - o1_X_test types:
+2025-05-03 14:24:48,103 - INFO - o1_X_test types:
 float32    345
 Name: count, dtype: int64
-2025-03-24 00:17:24,808 - INFO - o1_X_train types:
+2025-05-03 14:24:48,105 - INFO - o1_X_train types:
 float32    345
 Name: count, dtype: int64
-2025-03-24 00:17:24,810 - INFO - o1_X_validate types:
+2025-05-03 14:24:48,107 - INFO - o1_X_validate types:
 float32    345
 Name: count, dtype: int64
-2025-03-24 00:17:24,813 - INFO - o1_y_external_los types:
+2025-05-03 14:24:48,109 - INFO - o1_y_external_los types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,815 - INFO - o1_y_external_mortality types:
+2025-05-03 14:24:48,111 - INFO - o1_y_external_mortality types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,817 - INFO - o1_y_test_los types:
+2025-05-03 14:24:48,113 - INFO - o1_y_test_los types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,820 - INFO - o1_y_test_mortality types:
+2025-05-03 14:24:48,115 - INFO - o1_y_test_mortality types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,821 - INFO - o1_y_train_los types:
+2025-05-03 14:24:48,116 - INFO - o1_y_train_los types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,824 - INFO - o1_y_train_mortality types:
+2025-05-03 14:24:48,118 - INFO - o1_y_train_mortality types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,825 - INFO - o1_y_validate_los types:
+2025-05-03 14:24:48,120 - INFO - o1_y_validate_los types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,828 - INFO - o1_y_validate_mortality types:
+2025-05-03 14:24:48,122 - INFO - o1_y_validate_mortality types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,830 - INFO - o2_X_external types:
+2025-05-03 14:24:48,123 - INFO - o2_X_external types:
 float32    345
 Name: count, dtype: int64
-2025-03-24 00:17:24,832 - INFO - o2_X_test types:
+2025-05-03 14:24:48,125 - INFO - o2_X_test types:
 float32    345
 Name: count, dtype: int64
-2025-03-24 00:17:24,835 - INFO - o2_X_train types:
+2025-05-03 14:24:48,127 - INFO - o2_X_train types:
 float32    345
 Name: count, dtype: int64
-2025-03-24 00:17:24,837 - INFO - o2_X_validate types:
+2025-05-03 14:24:48,129 - INFO - o2_X_validate types:
 float32    345
 Name: count, dtype: int64
-2025-03-24 00:17:24,839 - INFO - o2_y_external_los types:
+2025-05-03 14:24:48,131 - INFO - o2_y_external_los types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,842 - INFO - o2_y_external_mortality types:
+2025-05-03 14:24:48,133 - INFO - o2_y_external_mortality types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,844 - INFO - o2_y_test_los types:
+2025-05-03 14:24:48,134 - INFO - o2_y_test_los types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,846 - INFO - o2_y_test_mortality types:
+2025-05-03 14:24:48,136 - INFO - o2_y_test_mortality types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,849 - INFO - o2_y_train_los types:
+2025-05-03 14:24:48,137 - INFO - o2_y_train_los types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,851 - INFO - o2_y_train_mortality types:
+2025-05-03 14:24:48,139 - INFO - o2_y_train_mortality types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,853 - INFO - o2_y_validate_los types:
+2025-05-03 14:24:48,140 - INFO - o2_y_validate_los types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,855 - INFO - o2_y_validate_mortality types:
+2025-05-03 14:24:48,142 - INFO - o2_y_validate_mortality types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,859 - INFO - o3_X_external types:
+2025-05-03 14:24:48,145 - INFO - o3_X_external types:
 float32    345
 Name: count, dtype: int64
-2025-03-24 00:17:24,862 - INFO - o3_X_test types:
+2025-05-03 14:24:48,147 - INFO - o3_X_test types:
 float32    345
 Name: count, dtype: int64
-2025-03-24 00:17:24,865 - INFO - o3_X_train types:
+2025-05-03 14:24:48,149 - INFO - o3_X_train types:
 float32    345
 Name: count, dtype: int64
-2025-03-24 00:17:24,867 - INFO - o3_X_validate types:
+2025-05-03 14:24:48,150 - INFO - o3_X_validate types:
 float32    345
 Name: count, dtype: int64
-2025-03-24 00:17:24,869 - INFO - o3_y_external_los types:
+2025-05-03 14:24:48,152 - INFO - o3_y_external_los types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,873 - INFO - o3_y_external_mortality types:
+2025-05-03 14:24:48,153 - INFO - o3_y_external_mortality types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,876 - INFO - o3_y_test_los types:
+2025-05-03 14:24:48,155 - INFO - o3_y_test_los types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,880 - INFO - o3_y_test_mortality types:
+2025-05-03 14:24:48,157 - INFO - o3_y_test_mortality types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,881 - INFO - o3_y_train_los types:
+2025-05-03 14:24:48,158 - INFO - o3_y_train_los types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,884 - INFO - o3_y_train_mortality types:
+2025-05-03 14:24:48,160 - INFO - o3_y_train_mortality types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,886 - INFO - o3_y_validate_los types:
+2025-05-03 14:24:48,162 - INFO - o3_y_validate_los types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,888 - INFO - o3_y_validate_mortality types:
+2025-05-03 14:24:48,164 - INFO - o3_y_validate_mortality types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,891 - INFO - o4_X_external types:
+2025-05-03 14:24:48,166 - INFO - o4_X_external types:
 float32    345
 Name: count, dtype: int64
-2025-03-24 00:17:24,894 - INFO - o4_X_test types:
+2025-05-03 14:24:48,167 - INFO - o4_X_test types:
 float32    345
 Name: count, dtype: int64
-2025-03-24 00:17:24,896 - INFO - o4_X_train types:
+2025-05-03 14:24:48,169 - INFO - o4_X_train types:
 float32    345
 Name: count, dtype: int64
-2025-03-24 00:17:24,899 - INFO - o4_X_validate types:
+2025-05-03 14:24:48,171 - INFO - o4_X_validate types:
 float32    345
 Name: count, dtype: int64
-2025-03-24 00:17:24,901 - INFO - o4_y_external_los types:
+2025-05-03 14:24:48,172 - INFO - o4_y_external_los types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,905 - INFO - o4_y_external_mortality types:
+2025-05-03 14:24:48,174 - INFO - o4_y_external_mortality types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,909 - INFO - o4_y_test_los types:
+2025-05-03 14:24:48,177 - INFO - o4_y_test_los types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,911 - INFO - o4_y_test_mortality types:
+2025-05-03 14:24:48,179 - INFO - o4_y_test_mortality types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,914 - INFO - o4_y_train_los types:
+2025-05-03 14:24:48,180 - INFO - o4_y_train_los types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,916 - INFO - o4_y_train_mortality types:
+2025-05-03 14:24:48,182 - INFO - o4_y_train_mortality types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,919 - INFO - o4_y_validate_los types:
+2025-05-03 14:24:48,183 - INFO - o4_y_validate_los types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,921 - INFO - o4_y_validate_mortality types:
+2025-05-03 14:24:48,185 - INFO - o4_y_validate_mortality types:
 float32    1
 Name: count, dtype: int64
-2025-03-24 00:17:24,922 - INFO - Check Complete.
-2025-03-24 00:17:24,923 - INFO - ++++++++++++++++++++++++++++++++++++++++++
-2025-03-24 00:17:24,935 - INFO - ++++++++++++++++++++++++++++++++++++++++++
-2025-03-24 00:17:24,937 - INFO - Calculate missing values...
-2025-03-24 00:17:25,144 - INFO - o1_X_external: 39527616 missing values across 308 columns
-2025-03-24 00:17:25,162 - INFO - o1_X_test: 1985664 missing values across 292 columns
-2025-03-24 00:17:25,274 - INFO - o1_X_train: 15876288 missing values across 304 columns
-2025-03-24 00:17:25,291 - INFO - o1_X_validate: 2007696 missing values across 296 columns
-2025-03-24 00:17:25,295 - INFO - o1_y_external_los: 0 missing values across 0 columns
-2025-03-24 00:17:25,297 - INFO - o1_y_external_mortality: 0 missing values across 0 columns
-2025-03-24 00:17:25,299 - INFO - o1_y_test_los: 0 missing values across 0 columns
-2025-03-24 00:17:25,302 - INFO - o1_y_test_mortality: 0 missing values across 0 columns
-2025-03-24 00:17:25,304 - INFO - o1_y_train_los: 0 missing values across 0 columns
-2025-03-24 00:17:25,307 - INFO - o1_y_train_mortality: 0 missing values across 0 columns
-2025-03-24 00:17:25,310 - INFO - o1_y_validate_los: 0 missing values across 0 columns
-2025-03-24 00:17:25,312 - INFO - o1_y_validate_mortality: 0 missing values across 0 columns
-2025-03-24 00:17:25,411 - INFO - o2_X_external: 19763572 missing values across 308 columns
-2025-03-24 00:17:25,421 - INFO - o2_X_test: 992832 missing values across 292 columns
-2025-03-24 00:17:25,474 - INFO - o2_X_train: 7938144 missing values across 304 columns
-2025-03-24 00:17:25,483 - INFO - o2_X_validate: 1003848 missing values across 296 columns
-2025-03-24 00:17:25,486 - INFO - o2_y_external_los: 0 missing values across 0 columns
-2025-03-24 00:17:25,488 - INFO - o2_y_external_mortality: 0 missing values across 0 columns
-2025-03-24 00:17:25,490 - INFO - o2_y_test_los: 0 missing values across 0 columns
-2025-03-24 00:17:25,492 - INFO - o2_y_test_mortality: 0 missing values across 0 columns
-2025-03-24 00:17:25,495 - INFO - o2_y_train_los: 0 missing values across 0 columns
-2025-03-24 00:17:25,497 - INFO - o2_y_train_mortality: 0 missing values across 0 columns
-2025-03-24 00:17:25,499 - INFO - o2_y_validate_los: 0 missing values across 0 columns
-2025-03-24 00:17:25,501 - INFO - o2_y_validate_mortality: 0 missing values across 0 columns
-2025-03-24 00:17:25,564 - INFO - o3_X_external: 13175808 missing values across 308 columns
-2025-03-24 00:17:25,572 - INFO - o3_X_test: 661888 missing values across 292 columns
-2025-03-24 00:17:25,607 - INFO - o3_X_train: 5292096 missing values across 304 columns
-2025-03-24 00:17:25,614 - INFO - o3_X_validate: 669232 missing values across 296 columns
-2025-03-24 00:17:25,617 - INFO - o3_y_external_los: 0 missing values across 0 columns
-2025-03-24 00:17:25,619 - INFO - o3_y_external_mortality: 0 missing values across 0 columns
-2025-03-24 00:17:25,621 - INFO - o3_y_test_los: 0 missing values across 0 columns
-2025-03-24 00:17:25,623 - INFO - o3_y_test_mortality: 0 missing values across 0 columns
-2025-03-24 00:17:25,625 - INFO - o3_y_train_los: 0 missing values across 0 columns
-2025-03-24 00:17:25,628 - INFO - o3_y_train_mortality: 0 missing values across 0 columns
-2025-03-24 00:17:25,629 - INFO - o3_y_validate_los: 0 missing values across 0 columns
-2025-03-24 00:17:25,632 - INFO - o3_y_validate_mortality: 0 missing values across 0 columns
-2025-03-24 00:17:25,682 - INFO - o4_X_external: 9881900 missing values across 308 columns
-2025-03-24 00:17:25,689 - INFO - o4_X_test: 496416 missing values across 292 columns
-2025-03-24 00:17:25,717 - INFO - o4_X_train: 3969072 missing values across 304 columns
-2025-03-24 00:17:25,724 - INFO - o4_X_validate: 501924 missing values across 296 columns
-2025-03-24 00:17:25,728 - INFO - o4_y_external_los: 0 missing values across 0 columns
-2025-03-24 00:17:25,730 - INFO - o4_y_external_mortality: 0 missing values across 0 columns
-2025-03-24 00:17:25,733 - INFO - o4_y_test_los: 0 missing values across 0 columns
-2025-03-24 00:17:25,736 - INFO - o4_y_test_mortality: 0 missing values across 0 columns
-2025-03-24 00:17:25,738 - INFO - o4_y_train_los: 0 missing values across 0 columns
-2025-03-24 00:17:25,741 - INFO - o4_y_train_mortality: 0 missing values across 0 columns
-2025-03-24 00:17:25,744 - INFO - o4_y_validate_los: 0 missing values across 0 columns
-2025-03-24 00:17:25,747 - INFO - o4_y_validate_mortality: 0 missing values across 0 columns
-2025-03-24 00:17:25,748 - INFO - Missing values calculation complete.
-2025-03-24 00:17:25,750 - INFO - ++++++++++++++++++++++++++++++++++++++++++
-2025-03-24 00:17:25,764 - INFO - ++++++++++++++++++++++++++++++++++++++++++
-2025-03-24 00:17:25,765 - INFO - Calculate unique values.
-2025-03-24 00:17:25,775 - INFO - o1_y_external_los unique target values: {'los': 830}
-2025-03-24 00:17:25,779 - INFO - o1_y_external_mortality unique target values: {'hospital_expire_flag': 2}
-2025-03-24 00:17:25,782 - INFO - o1_y_test_los unique target values: {'los': 319}
-2025-03-24 00:17:25,784 - INFO - o1_y_test_mortality unique target values: {'hospital_expire_flag': 2}
-2025-03-24 00:17:25,789 - INFO - o1_y_train_los unique target values: {'los': 2548}
-2025-03-24 00:17:25,793 - INFO - o1_y_train_mortality unique target values: {'hospital_expire_flag': 2}
-2025-03-24 00:17:25,796 - INFO - o1_y_validate_los unique target values: {'los': 319}
-2025-03-24 00:17:25,798 - INFO - o1_y_validate_mortality unique target values: {'hospital_expire_flag': 2}
-2025-03-24 00:17:25,803 - INFO - o2_y_external_los unique target values: {'los': 830}
-2025-03-24 00:17:25,806 - INFO - o2_y_external_mortality unique target values: {'hospital_expire_flag': 2}
-2025-03-24 00:17:25,808 - INFO - o2_y_test_los unique target values: {'los': 319}
-2025-03-24 00:17:25,812 - INFO - o2_y_test_mortality unique target values: {'hospital_expire_flag': 2}
-2025-03-24 00:17:25,814 - INFO - o2_y_train_los unique target values: {'los': 2548}
-2025-03-24 00:17:25,817 - INFO - o2_y_train_mortality unique target values: {'hospital_expire_flag': 2}
-2025-03-24 00:17:25,819 - INFO - o2_y_validate_los unique target values: {'los': 319}
-2025-03-24 00:17:25,821 - INFO - o2_y_validate_mortality unique target values: {'hospital_expire_flag': 2}
-2025-03-24 00:17:25,824 - INFO - o3_y_external_los unique target values: {'los': 830}
-2025-03-24 00:17:25,827 - INFO - o3_y_external_mortality unique target values: {'hospital_expire_flag': 2}
-2025-03-24 00:17:25,829 - INFO - o3_y_test_los unique target values: {'los': 319}
-2025-03-24 00:17:25,831 - INFO - o3_y_test_mortality unique target values: {'hospital_expire_flag': 2}
-2025-03-24 00:17:25,834 - INFO - o3_y_train_los unique target values: {'los': 2548}
-2025-03-24 00:17:25,836 - INFO - o3_y_train_mortality unique target values: {'hospital_expire_flag': 2}
-2025-03-24 00:17:25,838 - INFO - o3_y_validate_los unique target values: {'los': 319}
-2025-03-24 00:17:25,841 - INFO - o3_y_validate_mortality unique target values: {'hospital_expire_flag': 2}
-2025-03-24 00:17:25,844 - INFO - o4_y_external_los unique target values: {'los': 830}
-2025-03-24 00:17:25,846 - INFO - o4_y_external_mortality unique target values: {'hospital_expire_flag': 2}
-2025-03-24 00:17:25,849 - INFO - o4_y_test_los unique target values: {'los': 319}
-2025-03-24 00:17:25,851 - INFO - o4_y_test_mortality unique target values: {'hospital_expire_flag': 2}
-2025-03-24 00:17:25,853 - INFO - o4_y_train_los unique target values: {'los': 2548}
-2025-03-24 00:17:25,855 - INFO - o4_y_train_mortality unique target values: {'hospital_expire_flag': 2}
-2025-03-24 00:17:25,857 - INFO - o4_y_validate_los unique target values: {'los': 319}
-2025-03-24 00:17:25,858 - INFO - o4_y_validate_mortality unique target values: {'hospital_expire_flag': 2}
-2025-03-24 00:17:25,859 - INFO - Unique values calculation complete.
-2025-03-24 00:17:25,861 - INFO - ++++++++++++++++++++++++++++++++++++++++++
+2025-05-03 14:24:48,186 - INFO - Check Complete.
+2025-05-03 14:24:48,187 - INFO - ++++++++++++++++++++++++++++++++++++++++++
+2025-05-03 14:24:48,197 - INFO - ++++++++++++++++++++++++++++++++++++++++++
+2025-05-03 14:24:48,200 - INFO - Calculate missing values...
+2025-05-03 14:24:48,400 - INFO - o1_X_external: 39527616 missing values across 308 columns
+2025-05-03 14:24:48,417 - INFO - o1_X_test: 1985664 missing values across 292 columns
+2025-05-03 14:24:48,515 - INFO - o1_X_train: 15876288 missing values across 304 columns
+2025-05-03 14:24:48,530 - INFO - o1_X_validate: 2007696 missing values across 296 columns
+2025-05-03 14:24:48,533 - INFO - o1_y_external_los: 0 missing values across 0 columns
+2025-05-03 14:24:48,535 - INFO - o1_y_external_mortality: 0 missing values across 0 columns
+2025-05-03 14:24:48,537 - INFO - o1_y_test_los: 0 missing values across 0 columns
+2025-05-03 14:24:48,539 - INFO - o1_y_test_mortality: 0 missing values across 0 columns
+2025-05-03 14:24:48,541 - INFO - o1_y_train_los: 0 missing values across 0 columns
+2025-05-03 14:24:48,543 - INFO - o1_y_train_mortality: 0 missing values across 0 columns
+2025-05-03 14:24:48,545 - INFO - o1_y_validate_los: 0 missing values across 0 columns
+2025-05-03 14:24:48,547 - INFO - o1_y_validate_mortality: 0 missing values across 0 columns
+2025-05-03 14:24:48,650 - INFO - o2_X_external: 19763572 missing values across 308 columns
+2025-05-03 14:24:48,659 - INFO - o2_X_test: 992832 missing values across 292 columns
+2025-05-03 14:24:48,718 - INFO - o2_X_train: 7938144 missing values across 304 columns
+2025-05-03 14:24:48,728 - INFO - o2_X_validate: 1003848 missing values across 296 columns
+2025-05-03 14:24:48,731 - INFO - o2_y_external_los: 0 missing values across 0 columns
+2025-05-03 14:24:48,733 - INFO - o2_y_external_mortality: 0 missing values across 0 columns
+2025-05-03 14:24:48,735 - INFO - o2_y_test_los: 0 missing values across 0 columns
+2025-05-03 14:24:48,738 - INFO - o2_y_test_mortality: 0 missing values across 0 columns
+2025-05-03 14:24:48,739 - INFO - o2_y_train_los: 0 missing values across 0 columns
+2025-05-03 14:24:48,741 - INFO - o2_y_train_mortality: 0 missing values across 0 columns
+2025-05-03 14:24:48,745 - INFO - o2_y_validate_los: 0 missing values across 0 columns
+2025-05-03 14:24:48,747 - INFO - o2_y_validate_mortality: 0 missing values across 0 columns
+2025-05-03 14:24:48,815 - INFO - o3_X_external: 13175808 missing values across 308 columns
+2025-05-03 14:24:48,822 - INFO - o3_X_test: 661888 missing values across 292 columns
+2025-05-03 14:24:48,858 - INFO - o3_X_train: 5292096 missing values across 304 columns
+2025-05-03 14:24:48,865 - INFO - o3_X_validate: 669232 missing values across 296 columns
+2025-05-03 14:24:48,868 - INFO - o3_y_external_los: 0 missing values across 0 columns
+2025-05-03 14:24:48,870 - INFO - o3_y_external_mortality: 0 missing values across 0 columns
+2025-05-03 14:24:48,871 - INFO - o3_y_test_los: 0 missing values across 0 columns
+2025-05-03 14:24:48,873 - INFO - o3_y_test_mortality: 0 missing values across 0 columns
+2025-05-03 14:24:48,875 - INFO - o3_y_train_los: 0 missing values across 0 columns
+2025-05-03 14:24:48,877 - INFO - o3_y_train_mortality: 0 missing values across 0 columns
+2025-05-03 14:24:48,879 - INFO - o3_y_validate_los: 0 missing values across 0 columns
+2025-05-03 14:24:48,880 - INFO - o3_y_validate_mortality: 0 missing values across 0 columns
+2025-05-03 14:24:48,935 - INFO - o4_X_external: 9881900 missing values across 308 columns
+2025-05-03 14:24:48,941 - INFO - o4_X_test: 496416 missing values across 292 columns
+2025-05-03 14:24:48,969 - INFO - o4_X_train: 3969072 missing values across 304 columns
+2025-05-03 14:24:48,975 - INFO - o4_X_validate: 501924 missing values across 296 columns
+2025-05-03 14:24:48,977 - INFO - o4_y_external_los: 0 missing values across 0 columns
+2025-05-03 14:24:48,980 - INFO - o4_y_external_mortality: 0 missing values across 0 columns
+2025-05-03 14:24:48,982 - INFO - o4_y_test_los: 0 missing values across 0 columns
+2025-05-03 14:24:48,985 - INFO - o4_y_test_mortality: 0 missing values across 0 columns
+2025-05-03 14:24:48,986 - INFO - o4_y_train_los: 0 missing values across 0 columns
+2025-05-03 14:24:48,989 - INFO - o4_y_train_mortality: 0 missing values across 0 columns
+2025-05-03 14:24:48,991 - INFO - o4_y_validate_los: 0 missing values across 0 columns
+2025-05-03 14:24:48,993 - INFO - o4_y_validate_mortality: 0 missing values across 0 columns
+2025-05-03 14:24:48,995 - INFO - Missing values calculation complete.
+2025-05-03 14:24:48,996 - INFO - ++++++++++++++++++++++++++++++++++++++++++
+2025-05-03 14:24:49,006 - INFO - ++++++++++++++++++++++++++++++++++++++++++
+2025-05-03 14:24:49,008 - INFO - Calculate unique values.
+2025-05-03 14:24:49,016 - INFO - o1_y_external_los unique target values: {'los': 830}
+2025-05-03 14:24:49,021 - INFO - o1_y_external_mortality unique target values: {'hospital_expire_flag': 2}
+2025-05-03 14:24:49,023 - INFO - o1_y_test_los unique target values: {'los': 319}
+2025-05-03 14:24:49,025 - INFO - o1_y_test_mortality unique target values: {'hospital_expire_flag': 2}
+2025-05-03 14:24:49,029 - INFO - o1_y_train_los unique target values: {'los': 2548}
+2025-05-03 14:24:49,033 - INFO - o1_y_train_mortality unique target values: {'hospital_expire_flag': 2}
+2025-05-03 14:24:49,035 - INFO - o1_y_validate_los unique target values: {'los': 319}
+2025-05-03 14:24:49,036 - INFO - o1_y_validate_mortality unique target values: {'hospital_expire_flag': 2}
+2025-05-03 14:24:49,040 - INFO - o2_y_external_los unique target values: {'los': 830}
+2025-05-03 14:24:49,043 - INFO - o2_y_external_mortality unique target values: {'hospital_expire_flag': 2}
+2025-05-03 14:24:49,044 - INFO - o2_y_test_los unique target values: {'los': 319}
+2025-05-03 14:24:49,046 - INFO - o2_y_test_mortality unique target values: {'hospital_expire_flag': 2}
+2025-05-03 14:24:49,049 - INFO - o2_y_train_los unique target values: {'los': 2548}
+2025-05-03 14:24:49,051 - INFO - o2_y_train_mortality unique target values: {'hospital_expire_flag': 2}
+2025-05-03 14:24:49,053 - INFO - o2_y_validate_los unique target values: {'los': 319}
+2025-05-03 14:24:49,055 - INFO - o2_y_validate_mortality unique target values: {'hospital_expire_flag': 2}
+2025-05-03 14:24:49,058 - INFO - o3_y_external_los unique target values: {'los': 830}
+2025-05-03 14:24:49,060 - INFO - o3_y_external_mortality unique target values: {'hospital_expire_flag': 2}
+2025-05-03 14:24:49,062 - INFO - o3_y_test_los unique target values: {'los': 319}
+2025-05-03 14:24:49,064 - INFO - o3_y_test_mortality unique target values: {'hospital_expire_flag': 2}
+2025-05-03 14:24:49,066 - INFO - o3_y_train_los unique target values: {'los': 2548}
+2025-05-03 14:24:49,068 - INFO - o3_y_train_mortality unique target values: {'hospital_expire_flag': 2}
+2025-05-03 14:24:49,070 - INFO - o3_y_validate_los unique target values: {'los': 319}
+2025-05-03 14:24:49,072 - INFO - o3_y_validate_mortality unique target values: {'hospital_expire_flag': 2}
+2025-05-03 14:24:49,074 - INFO - o4_y_external_los unique target values: {'los': 830}
+2025-05-03 14:24:49,076 - INFO - o4_y_external_mortality unique target values: {'hospital_expire_flag': 2}
+2025-05-03 14:24:49,079 - INFO - o4_y_test_los unique target values: {'los': 319}
+2025-05-03 14:24:49,080 - INFO - o4_y_test_mortality unique target values: {'hospital_expire_flag': 2}
+2025-05-03 14:24:49,082 - INFO - o4_y_train_los unique target values: {'los': 2548}
+2025-05-03 14:24:49,084 - INFO - o4_y_train_mortality unique target values: {'hospital_expire_flag': 2}
+2025-05-03 14:24:49,086 - INFO - o4_y_validate_los unique target values: {'los': 319}
+2025-05-03 14:24:49,087 - INFO - o4_y_validate_mortality unique target values: {'hospital_expire_flag': 2}
+2025-05-03 14:24:49,089 - INFO - Unique values calculation complete.
+2025-05-03 14:24:49,089 - INFO - ++++++++++++++++++++++++++++++++++++++++++
