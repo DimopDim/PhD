@@ -1,0 +1,50 @@
+package com.example.museumemotionapp.models
+
+data class Artwork(
+    val id: String,
+    val title: String,
+    val greekTitle: String,
+    val artist: String,
+    val url: String
+)
+
+// List of artworks
+val artworks = listOf(
+    Artwork("101", "La Santa Faz", "Η Θεία Μορφή", "Δομήνικος Θεοτοκόπουλος (El Greco)", "https://goulandris.gr/el/artwork/el-greco-the-holy-face"),
+    Artwork("102", "La cueillette des olives", "Η συγκομιδή της ελιάς", "Vincent van Gogh", "https://goulandris.gr/el/artwork/vincent-van-gogh-olive-picking"),
+    Artwork("103", "Nature morte à la cafetière", "Νεκρή φύση με καφετιέρα", "Vincent van Gogh", "https://goulandris.gr/el/artwork/vincent-van-gogh-still-life-coffee-pot"),
+    Artwork("104", "Nature morte aux pamplemousses", "Νεκρή φύση με γκρέιπ φρουτ", "Paul Gauguin", "https://goulandris.gr/el/artwork/gauguin-paul-still-life-with-grapefruits"),
+    Artwork("105", "Les Alyscamps", "Τα Αλυσκάν", "Vincent van Gogh", "https://goulandris.gr/el/artwork/vincent-van-gogh-les-alyscamps"),
+    Artwork("106", "La cathédrale de Rouen le matin (dominante rose)", "Ο καθεδρικός ναός της Ρουέν το πρωί (ροζ απόχρωση)", "Claude Monet", "https://goulandris.gr/el/artwork/monet-claude-rouen-cathedral-pink-dominant"),
+    Artwork("107", "Portrait de l’artiste regardant par-dessus son épaule", "Προσωπογραφία του καλλιτέχνη ενώ κοιτάζει πάνω από τον ώμο του", "Paul Cézanne", "https://goulandris.gr/el/artwork/cezanne-paul-portrait-of-the-artist-looking-over-his-shoulder"),
+    Artwork("108", "L’église de Montigny-sur-Loing", "Η εκκλησία του Μοντινύ-συρ-Λουέν", "Paul Cézanne", "https://goulandris.gr/el/artwork/cezanne-paul-the-church-of-montigny-sur-loing"),
+    Artwork("109", "La campagne d’Auvers-sur-Oise", "Η εξοχή του Ωβέρ-συρ-Ουάζ", "Paul Cézanne", "https://goulandris.gr/el/artwork/cezanne-paul-the-countryside-of-auvers-sur-oise"),
+    Artwork("110", "Femme dans le jardin de monsieur Forest", "Γυναίκα στον κήπο του κυρίου Forest", "Henri de Toulouse-Lautrec", "https://goulandris.gr/el/artwork/henri-de-toulouse-lautrec-woman-in-monsieur-forests-garden"),
+    Artwork("111", "La sortie de la baignoire", "Βγαίνοντας από την μπανιέρα", "Pierre Bonnard", "https://goulandris.gr/el/artwork/bonnard-pierre-getting-out-of-the-bath"),
+    Artwork("112", "Jeune homme au bouquet", "Νέος με ανθοδέσμη", "Pablo Picasso", "https://goulandris.gr/el/artwork/picasso-pablo-young-man-with-bouquet"),
+    Artwork("115", "La sauterelle", "Η ακρίδα", "Joan Miró", "https://goulandris.gr/el/artwork/miro-joan-the-grasshopper"),
+    Artwork("116", "La patience", "ΆΗ πασιέντζα", "Georges Braque", "https://goulandris.gr/el/artwork/braque-georges-patience"),
+    Artwork("117", "Élément mécanique", "Μηχανικό στοιχείο", "Fernand Léger", "https://goulandris.gr/el/artwork/leger-fernand-mechanical-element"),
+    Artwork("118", "Beide gestreift", "Και τα δύο ριγέ ", "Wassily Kandinsky", "https://goulandris.gr/el/artwork/kandinsky-wassily-both-striped"),
+    Artwork("119", "Dynamik eines Kopfes", "Δυναμική κεφαλιού", "Paul Klee", "https://goulandris.gr/el/artwork/klee-paul-dynamics-of-a-head"),
+    Artwork("120", "Composition bleue", "Μπλε σύνθεση", "Jean Hélion",  "https://goulandris.gr/el/artwork/helion-jean-blue-composition"),
+    Artwork("121", "Femme nue aux bras levés", "Γυμνή γυναίκα με σηκωμένα χέρια", "Pablo Picasso", "https://goulandris.gr/el/artwork/picasso-pablo-nude-woman-with-raised-arms"),
+    Artwork("201", "Tête d’otage nο. 17", "Κεφάλι ομήρου αρ. 17", "Jean Fautrier", "https://goulandris.gr/el/artwork/fautrier-jean-head-of-hostage-no-17"),
+    Artwork("202", "Sans titre", "Χωρίς τίτλο", "Serge Poliakoff", "https://goulandris.gr/el/artwork/poliakoff-serge-untitled"),
+    Artwork("204", "Portrait de Yanaihara", "Προσωπογραφία του Yanaihara", "Alberto Giacometti", "https://goulandris.gr/el/artwork/giacometti-alberto-portrait-of-yanaihara"),
+    Artwork("208", "Sunrise", "Ανατολή", "Roy Lichtenstein", "https://goulandris.gr/el/artwork/lichtenstein-roy-sunrise"),
+    Artwork("214", "Pendant que la Terre dort", "Ενώ η Γη κοιμάται", "Max Ernst", "https://goulandris.gr/el/artwork/ernst-max-while-the-earth-sleeps"),
+    Artwork("215", "Vue de Montecalvello", "Θέα του Μοντεκαλβέλλο", "Balthus", "https://goulandris.gr/el/artwork/balthus-landscape-of-montecalvello"),
+    Artwork("218", "1967 (Green Quoit)", "1967 (Πράσινο ντολμέν)", "Ben Nicholson", "https://goulandris.gr/el/artwork/nicholson-ben-1967-green-quoit"),
+    Artwork("219", "Peinture 162 x 114 cm., 13 août 1959", "Ζωγραφική 162 x 114 εκ., 13 Αυγούστου 1959", "Pierre Soulages", "https://goulandris.gr/el/artwork/soulages-pierre-painting-august-13-1959"),
+    Artwork("220", "Three Studies for Self-Portrait", "Τρεις σπουδές για αυτοπροσωπογραφία", "Francis Bacon", "https://goulandris.gr/el/artwork/bacon-francis-three-studies-for-self-portrait"),
+    Artwork("221", "Cavalli sulla spiaggia", "Άλογα στην ακροθαλασσιά", "Giorgio de Chirico", "https://goulandris.gr/el/artwork/giorgio-de-chirico-horses-on-the-beach"),
+    Artwork("264", "Der rote Fisch", "Το κόκκινο ψάρι", "A. R. Penck", "https://goulandris.gr/el/artwork/penck-a-r-the-red-fish"),
+    Artwork("271", "Still Life with Green Curtain", "Νεκρή φύση με πράσινη κουρτίνα", "Fernando Botero", "https://goulandris.gr/el/artwork/botero-fernando-still-life-with-green-curtain"),
+    Artwork("272", "Portrait of E.B.G.", "Πορτραίτο της Ε.Β.Γ.", "Fernando Botero", "https://goulandris.gr/el/artwork/botero-fernando-portrait-of-elise-goulandris"),
+    Artwork("325", "Des Malers Atelier", "Το ατελιέ του καλλιτέχνη", "Anselm Kiefer", "https://goulandris.gr/el/artwork/kiefer-anselm-the-painters-studio"),
+    Artwork("501", "Portrait de E.B.G.", "Πορτραίτο της Ε.Β.Γ.", "Marc Chagall", "https://goulandris.gr/el/artwork/chagall-marc-portrait-of-elise-goulandris"),
+    Artwork("502", "Number 13", "Αριθμός 13", "Jackson Pollock", "https://goulandris.gr/el/artwork/pollock-jackson-number-13-1950"),
+    Artwork("503", "Walking through the Fallen City", "Περπατώντας στην γκρεμισμένη πόλη ", "Karel Appel", "https://goulandris.gr/el/artwork/appel-karel-walking-through-the-fallen-city"),
+    Artwork("504", "Maria Callas no. 4", "Maria Callas αρ. 4", "Julian Schnabel", "https://goulandris.gr/el/artwork/schnabel-julian-maria-callas-no-4"),
+    )

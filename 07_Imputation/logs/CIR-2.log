@@ -1,0 +1,102 @@
+2025-05-03 15:36:37,524 - INFO - Switched logging to logs/CIR-2.log
+2025-05-03 15:36:37,526 - INFO - This is being logged to CIR-2.log
+2025-05-03 15:36:37,539 - INFO - +++++++++++++++++CIR-2+++++++++++++++++++++++++
+2025-05-03 15:36:37,540 - INFO - Start Loading Dataframes.
+2025-05-03 15:36:37,541 - INFO - Loading... -> o1_X_external.csv
+2025-05-03 15:36:44,617 - INFO - Loading... -> o1_X_test.csv
+2025-05-03 15:36:45,125 - INFO - Loading... -> o1_X_train.csv
+2025-05-03 15:36:49,244 - INFO - Loading... -> o1_X_validate.csv
+2025-05-03 15:36:49,841 - INFO - Loading... -> o1_y_external_los.csv
+2025-05-03 15:36:49,892 - INFO - Loading... -> o1_y_external_mortality.csv
+2025-05-03 15:36:49,924 - INFO - Loading... -> o1_y_test_los.csv
+2025-05-03 15:36:49,935 - INFO - Loading... -> o1_y_test_mortality.csv
+2025-05-03 15:36:49,939 - INFO - Loading... -> o1_y_train_los.csv
+2025-05-03 15:36:49,980 - INFO - Loading... -> o1_y_train_mortality.csv
+2025-05-03 15:36:49,998 - INFO - Loading... -> o1_y_validate_los.csv
+2025-05-03 15:36:50,008 - INFO - Loading... -> o1_y_validate_mortality.csv
+2025-05-03 15:36:50,014 - INFO - Loading... -> o2_X_external.csv
+2025-05-03 15:36:53,973 - INFO - Loading... -> o2_X_test.csv
+2025-05-03 15:36:54,263 - INFO - Loading... -> o2_X_train.csv
+2025-05-03 15:36:56,432 - INFO - Loading... -> o2_X_validate.csv
+2025-05-03 15:36:56,721 - INFO - Loading... -> o2_y_external_los.csv
+2025-05-03 15:36:56,743 - INFO - Loading... -> o2_y_external_mortality.csv
+2025-05-03 15:36:56,760 - INFO - Loading... -> o2_y_test_los.csv
+2025-05-03 15:36:56,766 - INFO - Loading... -> o2_y_test_mortality.csv
+2025-05-03 15:36:56,770 - INFO - Loading... -> o2_y_train_los.csv
+2025-05-03 15:36:56,790 - INFO - Loading... -> o2_y_train_mortality.csv
+2025-05-03 15:36:56,800 - INFO - Loading... -> o2_y_validate_los.csv
+2025-05-03 15:36:56,805 - INFO - Loading... -> o2_y_validate_mortality.csv
+2025-05-03 15:36:56,809 - INFO - Loading... -> o3_X_external.csv
+2025-05-03 15:36:59,207 - INFO - Loading... -> o3_X_test.csv
+2025-05-03 15:36:59,401 - INFO - Loading... -> o3_X_train.csv
+2025-05-03 15:37:00,759 - INFO - Loading... -> o3_X_validate.csv
+2025-05-03 15:37:00,950 - INFO - Loading... -> o3_y_external_los.csv
+2025-05-03 15:37:00,967 - INFO - Loading... -> o3_y_external_mortality.csv
+2025-05-03 15:37:00,981 - INFO - Loading... -> o3_y_test_los.csv
+2025-05-03 15:37:00,987 - INFO - Loading... -> o3_y_test_mortality.csv
+2025-05-03 15:37:00,990 - INFO - Loading... -> o3_y_train_los.csv
+2025-05-03 15:37:01,008 - INFO - Loading... -> o3_y_train_mortality.csv
+2025-05-03 15:37:01,017 - INFO - Loading... -> o3_y_validate_los.csv
+2025-05-03 15:37:01,021 - INFO - Loading... -> o3_y_validate_mortality.csv
+2025-05-03 15:37:01,023 - INFO - Loading... -> o4_X_external.csv
+2025-05-03 15:37:02,897 - INFO - Loading... -> o4_X_test.csv
+2025-05-03 15:37:03,054 - INFO - Loading... -> o4_X_train.csv
+2025-05-03 15:37:04,092 - INFO - Loading... -> o4_X_validate.csv
+2025-05-03 15:37:04,241 - INFO - Loading... -> o4_y_external_los.csv
+2025-05-03 15:37:04,256 - INFO - Loading... -> o4_y_external_mortality.csv
+2025-05-03 15:37:04,266 - INFO - Loading... -> o4_y_test_los.csv
+2025-05-03 15:37:04,271 - INFO - Loading... -> o4_y_test_mortality.csv
+2025-05-03 15:37:04,275 - INFO - Loading... -> o4_y_train_los.csv
+2025-05-03 15:37:04,290 - INFO - Loading... -> o4_y_train_mortality.csv
+2025-05-03 15:37:04,296 - INFO - Loading... -> o4_y_validate_los.csv
+2025-05-03 15:37:04,300 - INFO - Loading... -> o4_y_validate_mortality.csv
+2025-05-03 15:37:04,304 - INFO - o1_X_external loaded successfully with shape (234720, 345)
+2025-05-03 15:37:04,305 - INFO - o1_X_test loaded successfully with shape (15312, 345)
+2025-05-03 15:37:04,305 - INFO - o1_X_train loaded successfully with shape (122496, 345)
+2025-05-03 15:37:04,307 - INFO - o1_X_validate loaded successfully with shape (15312, 345)
+2025-05-03 15:37:04,307 - INFO - o1_y_external_los loaded successfully with shape (234720, 1)
+2025-05-03 15:37:04,308 - INFO - o1_y_external_mortality loaded successfully with shape (234720, 1)
+2025-05-03 15:37:04,309 - INFO - o1_y_test_los loaded successfully with shape (15312, 1)
+2025-05-03 15:37:04,311 - INFO - o1_y_test_mortality loaded successfully with shape (15312, 1)
+2025-05-03 15:37:04,312 - INFO - o1_y_train_los loaded successfully with shape (122496, 1)
+2025-05-03 15:37:04,312 - INFO - o1_y_train_mortality loaded successfully with shape (122496, 1)
+2025-05-03 15:37:04,313 - INFO - o1_y_validate_los loaded successfully with shape (15312, 1)
+2025-05-03 15:37:04,314 - INFO - o1_y_validate_mortality loaded successfully with shape (15312, 1)
+2025-05-03 15:37:04,315 - INFO - o2_X_external loaded successfully with shape (117360, 345)
+2025-05-03 15:37:04,316 - INFO - o2_X_test loaded successfully with shape (7656, 345)
+2025-05-03 15:37:04,317 - INFO - o2_X_train loaded successfully with shape (61248, 345)
+2025-05-03 15:37:04,318 - INFO - o2_X_validate loaded successfully with shape (7656, 345)
+2025-05-03 15:37:04,319 - INFO - o2_y_external_los loaded successfully with shape (117360, 1)
+2025-05-03 15:37:04,319 - INFO - o2_y_external_mortality loaded successfully with shape (117360, 1)
+2025-05-03 15:37:04,320 - INFO - o2_y_test_los loaded successfully with shape (7656, 1)
+2025-05-03 15:37:04,321 - INFO - o2_y_test_mortality loaded successfully with shape (7656, 1)
+2025-05-03 15:37:04,322 - INFO - o2_y_train_los loaded successfully with shape (61248, 1)
+2025-05-03 15:37:04,323 - INFO - o2_y_train_mortality loaded successfully with shape (61248, 1)
+2025-05-03 15:37:04,323 - INFO - o2_y_validate_los loaded successfully with shape (7656, 1)
+2025-05-03 15:37:04,324 - INFO - o2_y_validate_mortality loaded successfully with shape (7656, 1)
+2025-05-03 15:37:04,326 - INFO - o3_X_external loaded successfully with shape (78240, 345)
+2025-05-03 15:37:04,326 - INFO - o3_X_test loaded successfully with shape (5104, 345)
+2025-05-03 15:37:04,329 - INFO - o3_X_train loaded successfully with shape (40832, 345)
+2025-05-03 15:37:04,329 - INFO - o3_X_validate loaded successfully with shape (5104, 345)
+2025-05-03 15:37:04,330 - INFO - o3_y_external_los loaded successfully with shape (78240, 1)
+2025-05-03 15:37:04,331 - INFO - o3_y_external_mortality loaded successfully with shape (78240, 1)
+2025-05-03 15:37:04,332 - INFO - o3_y_test_los loaded successfully with shape (5104, 1)
+2025-05-03 15:37:04,333 - INFO - o3_y_test_mortality loaded successfully with shape (5104, 1)
+2025-05-03 15:37:04,333 - INFO - o3_y_train_los loaded successfully with shape (40832, 1)
+2025-05-03 15:37:04,334 - INFO - o3_y_train_mortality loaded successfully with shape (40832, 1)
+2025-05-03 15:37:04,336 - INFO - o3_y_validate_los loaded successfully with shape (5104, 1)
+2025-05-03 15:37:04,337 - INFO - o3_y_validate_mortality loaded successfully with shape (5104, 1)
+2025-05-03 15:37:04,338 - INFO - o4_X_external loaded successfully with shape (58680, 345)
+2025-05-03 15:37:04,338 - INFO - o4_X_test loaded successfully with shape (3828, 345)
+2025-05-03 15:37:04,339 - INFO - o4_X_train loaded successfully with shape (30624, 345)
+2025-05-03 15:37:04,340 - INFO - o4_X_validate loaded successfully with shape (3828, 345)
+2025-05-03 15:37:04,341 - INFO - o4_y_external_los loaded successfully with shape (58680, 1)
+2025-05-03 15:37:04,341 - INFO - o4_y_external_mortality loaded successfully with shape (58680, 1)
+2025-05-03 15:37:04,344 - INFO - o4_y_test_los loaded successfully with shape (3828, 1)
+2025-05-03 15:37:04,345 - INFO - o4_y_test_mortality loaded successfully with shape (3828, 1)
+2025-05-03 15:37:04,345 - INFO - o4_y_train_los loaded successfully with shape (30624, 1)
+2025-05-03 15:37:04,346 - INFO - o4_y_train_mortality loaded successfully with shape (30624, 1)
+2025-05-03 15:37:04,347 - INFO - o4_y_validate_los loaded successfully with shape (3828, 1)
+2025-05-03 15:37:04,349 - INFO - o4_y_validate_mortality loaded successfully with shape (3828, 1)
+2025-05-03 15:37:04,350 - INFO - Load Complete.
+2025-05-03 15:37:04,351 - INFO - ++++++++++++++++++++++++++++++++++++++++++

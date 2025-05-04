@@ -1,0 +1,107 @@
+[IterativeImputer] Completing matrix with shape (30624, 345)
+[IterativeImputer] Ending imputation round 1/5, elapsed time 1761.81
+[IterativeImputer] Change: 8566.6396484375, scaled tolerance: 120.1300048828125 
+[IterativeImputer] Ending imputation round 2/5, elapsed time 3691.27
+[IterativeImputer] Change: 31385.736328125, scaled tolerance: 120.1300048828125 
+[IterativeImputer] Ending imputation round 3/5, elapsed time 5668.87
+[IterativeImputer] Change: 30395.248046875, scaled tolerance: 120.1300048828125 
+[IterativeImputer] Ending imputation round 4/5, elapsed time 7661.80
+[IterativeImputer] Change: 31269.458984375, scaled tolerance: 120.1300048828125 
+[IterativeImputer] Ending imputation round 5/5, elapsed time 9619.41
+[IterativeImputer] Change: 25790.79296875, scaled tolerance: 120.1300048828125 
+2025-05-03 21:20:16,706 - INFO - Imputation completed in 9622.88 seconds.
+2025-05-03 21:20:16,726 - INFO - Number of NaNs after imputation: 0
+2025-05-03 21:20:16,727 - INFO - Imputed dataset saved at CSV/exports/CRI-02/o1_impute_baselines/01_iterative/o4_X_train_Iterative_HistGradientBoosting.csv
+2025-05-03 21:20:17,549 - INFO - Basic statistics after imputation:
+                age  Alanine_Aminotransferase_(ALT)_(Max)  \
+count  30624.000000                          30624.000000   
+mean      69.297020                             77.049240   
+std       14.930233                            221.807205   
+min       18.000000                              1.000000   
+25%       60.000000                             28.000000   
+50%       71.000000                             76.077679   
+75%       81.000000                             76.685188   
+max       91.000000                           7510.000000   
+
+       Alanine_Aminotransferase_(ALT)_(Mean)  \
+count                           30624.000000   
+mean                               74.547241   
+std                               206.399490   
+min                                 1.000000   
+25%                                28.000000   
+50%                                73.477596   
+75%                                75.168621   
+max                              7510.000000   
+
+       Alanine_Aminotransferase_(ALT)_(Median)  \
+count                             30624.000000   
+mean                                 74.794464   
+std                                 207.068344   
+min                                   1.000000   
+25%                                  28.000000   
+50%                                  74.608742   
+75%                                  75.167648   
+max                                7510.000000   
+
+       Alanine_Aminotransferase_(ALT)_(Min)  Albumin_(Max)  Albumin_(Mean)  \
+count                          30624.000000   30624.000000    30624.000000   
+mean                              71.777557       3.472174        3.444324   
+std                              192.488434       0.354459        0.353841   
+min                                1.000000       1.100000        1.100000   
+25%                               28.000000       3.488764        3.451853   
+50%                               66.370308       3.489729        3.452595   
+75%                               76.373596       3.491791        3.453285   
+max                             7510.000000       4.900000        4.900000   
+
+       Albumin_(Median)  Albumin_(Min)  Alkaline_Phosphatase_(Max)  ...  \
+count      30624.000000   30624.000000                30624.000000  ...   
+mean           3.443357       3.436939                   86.203590  ...   
+std            0.353752       0.355464                   47.278320  ...   
+min            1.100000       1.100000                  -14.038294  ...   
+25%            3.451062       3.443452                   80.000000  ...   
+50%            3.451136       3.444757                   85.922821  ...   
+75%            3.451407       3.446838                   87.377487  ...   
+max            4.900000       4.900000                 1448.000000  ...   
+
+       race_PATIENT DECLINED TO ANSWER  race_PORTUGUESE  race_SOUTH AMERICAN  \
+count                     30624.000000     30624.000000         30624.000000   
+mean                          0.005878         0.001959             0.000784   
+std                           0.076447         0.044221             0.027980   
+min                           0.000000         0.000000             0.000000   
+25%                           0.000000         0.000000             0.000000   
+50%                           0.000000         0.000000             0.000000   
+75%                           0.000000         0.000000             0.000000   
+max                           1.000000         1.000000             1.000000   
+
+       race_UNABLE TO OBTAIN  race_UNKNOWN    race_WHITE  \
+count           30624.000000  30624.000000  30624.000000   
+mean                0.019201      0.089734      0.677900   
+std                 0.137224      0.285814      0.467209   
+min                 0.000000      0.000000      0.000000   
+25%                 0.000000      0.000000      0.000000   
+50%                 0.000000      0.000000      1.000000   
+75%                 0.000000      0.000000      1.000000   
+max                 1.000000      1.000000      1.000000   
+
+       race_WHITE - BRAZILIAN  race_WHITE - EASTERN EUROPEAN  \
+count            30624.000000                   30624.000000   
+mean                 0.000392                       0.001567   
+std                  0.019790                       0.039571   
+min                  0.000000                       0.000000   
+25%                  0.000000                       0.000000   
+50%                  0.000000                       0.000000   
+75%                  0.000000                       0.000000   
+max                  1.000000                       1.000000   
+
+       race_WHITE - OTHER EUROPEAN  race_WHITE - RUSSIAN  
+count                 30624.000000          30624.000000  
+mean                      0.010972              0.010188  
+std                       0.104178              0.100423  
+min                       0.000000              0.000000  
+25%                       0.000000              0.000000  
+50%                       0.000000              0.000000  
+75%                       0.000000              0.000000  
+max                       1.000000              1.000000  
+
+[8 rows x 345 columns]
+2025-05-03 21:20:18,400 - INFO - Basic statistics saved at CSV/exports/CRI-02/o1_impute_baselines/01_iterative/o4_X_train_Iterative_HistGradientBoosting_describe.csv
