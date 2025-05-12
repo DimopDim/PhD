@@ -193,7 +193,7 @@ Works best for dense rows (e.g., <40% missing).
 # Cache the model outside the function (top-level variable)
 _lstm_model = None
 
-def lstm_imputer(df, random_state=0, epochs=100, batch_size=64):
+def lstm_imputer(df, random_state=0, epochs=1000, batch_size=64):
     global _lstm_model
 
     df_copy = df.copy()
@@ -222,7 +222,7 @@ def lstm_imputer(df, random_state=0, epochs=100, batch_size=64):
     # Train and log loss
     for epoch in range(epochs):
         history = _lstm_model.fit(X, X, epochs=1, batch_size=batch_size, verbose=0)
-        if epoch % 10 == 0 or epoch == epochs - 1:
+        if epoch % 100 == 0 or epoch == epochs - 1:
             logging.info(f"[LSTM Epoch {epoch}] Loss: {history.history['loss'][0]:.4f}")
 
     # Predict and inverse transform
@@ -249,7 +249,7 @@ Arguments:
 Returns:
     pd.DataFrame: Imputed dataframe.
 """
-def gan_imputer(df, random_state=0, epochs=100, batch_size=128):
+def gan_imputer(df, random_state=0, epochs=1000, batch_size=128):
     tf.random.set_seed(random_state)
     np.random.seed(random_state)
 
@@ -352,7 +352,7 @@ to predict them.
     - High (0.4–0.5+) Very challenging — model must infer much of the input,
       good for robustness, risky for small data.
 """
-def rnn_imputer(df, random_state=0, epochs=100, batch_size=64, mask_ratio=0.2, patience=10):
+def rnn_imputer(df, random_state=0, epochs=1000, batch_size=64, mask_ratio=0.2, patience=10):
     global _rnn_model
 
     tf.random.set_seed(random_state)
@@ -420,7 +420,7 @@ def rnn_imputer(df, random_state=0, epochs=100, batch_size=64, mask_ratio=0.2, p
                 logging.info(f"[RNN Epoch {epoch}] Early stopping triggered. Best MAE: {best_mae.numpy():.4f}")
                 break
 
-        if epoch % 10 == 0 or epoch == epochs - 1:
+        if epoch % 100 == 0 or epoch == epochs - 1:
             logging.info(f"[RNN Epoch {epoch}] Masked Loss MSE: {loss.numpy():.4f} | MAE: {mae.numpy():.4f}")
 
     # Restore best weights
@@ -710,18 +710,16 @@ def get_imputer(method_name, registry):
 """----------------------------------------------------------------------------------------------------------------------"""
 
 
-methods_all = ["mean", "median", "knn", "iterative_function", "xgboost", "gan", "lstm", "rnn"]
+# methods_all = ["mean", "median", "knn", "iterative_simple", "iterative_function", "xgboost", "gan", "lstm", "rnn"]
+
+methods_all = ["mean", "median", "knn", "iterative_simple", "xgboost", "gan", "lstm", "rnn"]
 
 # Define all datasets
 datasets = [
-    "o1_X_validate",
-    "o2_X_validate",
-    "o3_X_validate",
-    "o4_X_validate"
     # "o1_X_train", "o1_X_validate", "o1_X_test", "o1_X_external",
     # "o2_X_train", "o2_X_validate", "o2_X_test", "o2_X_external",
     # "o3_X_train", "o3_X_validate", "o3_X_test", "o3_X_external",
-    # "o4_X_train", "o4_X_validate", "o4_X_test", "o4_X_external"
+    "o4_X_train", "o4_X_validate", "o4_X_test", "o4_X_external"
 ]
 
 # Define the fixed sequence builder
@@ -739,7 +737,7 @@ def build_sequences():
             sequences.append(fixed_1 + [method] * 9)
 
     # Stage C onward: Incrementally grow the fixed prefix
-    base = ["knn"] * 1 + ["iterative_function"] * 2
+    base = ["knn"] * 1 + ["iterative_simple"] * 2
     sequences.append(base + ["mean"] * 7)
     sequences.append(base + ["median"] * 7)
     sequences.append(base + ["xgboost"] * 7)
@@ -775,7 +773,7 @@ size = comm.Get_size()
 
 sequences = build_sequences()
 print(f"Total sequences generated: {len(sequences)}")
-#sequences = [sequences[-1]]
+sequences = [sequences[-1]]
 work_items = []
 index_records = []
 timing_records = {}
