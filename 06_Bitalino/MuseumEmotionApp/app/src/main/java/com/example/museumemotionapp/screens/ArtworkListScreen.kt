@@ -1,5 +1,6 @@
 package com.example.museumemotionapp.screens
 
+import com.example.museumemotionapp.utils.getVisitedArtworksFromLog
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -26,6 +27,13 @@ fun ArtworkListScreen(navController: NavController, username: String) {
     var searchText by remember { mutableStateOf("") }
     var selectedArtwork by remember { mutableStateOf<Artwork?>(null) }
     val context = LocalContext.current
+
+    // Visited artworks (loaded from log)
+    val visitedArtworks = remember { mutableStateOf(setOf<String>()) }
+
+    LaunchedEffect(username) {
+        visitedArtworks.value = getVisitedArtworksFromLog(context, username)
+    }
 
     Column(
         modifier = Modifier
@@ -54,12 +62,12 @@ fun ArtworkListScreen(navController: NavController, username: String) {
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Search Box with Frame and Numeric Keyboard
+        // Search Box
         OutlinedTextField(
             value = searchText,
             onValueChange = { searchText = it },
             label = { Text("Search by ID / Αναζήτηση κατά ID") },
-            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number), // Numeric Keyboard Only
+            keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(8.dp)
@@ -67,28 +75,36 @@ fun ArtworkListScreen(navController: NavController, username: String) {
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Artwork List (Scrollable)
+        // Artwork List
         Box(modifier = Modifier.weight(1f)) {
             LazyColumn {
                 items(artworks.filter { it.id.contains(searchText, ignoreCase = true) }) { artwork ->
+                    val isVisited = visitedArtworks.value.contains(artwork.id)
+
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(8.dp)
-                            .clickable { selectedArtwork = artwork }
+                            .clickable { selectedArtwork = artwork },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isVisited) Color.LightGray else Color.White
+                        )
                     ) {
                         Row(
                             modifier = Modifier.padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(text = "${artwork.id}: ${artwork.title} | ${artwork.greekTitle}")
+                            Text(
+                                text = "${artwork.id}: ${artwork.title} | ${artwork.greekTitle}",
+                                color = if (isVisited) Color.Gray else Color.Black
+                            )
                         }
                     }
                 }
             }
         }
 
-        // Footer (Copyright Text)
+        // Footer
         Text(
             text = "© 2025 MMAI Team | University of the Aegean",
             color = Color.Gray,
@@ -98,13 +114,12 @@ fun ArtworkListScreen(navController: NavController, username: String) {
                 .padding(vertical = 8.dp)
         )
 
-        // Popup Dialog for Artwork Confirmation (with image restored)
+        // Confirmation Dialog
         selectedArtwork?.let { artwork ->
             AlertDialog(
                 onDismissRequest = { selectedArtwork = null },
                 title = {
                     Text(text = "Confirm | Επιβεβαιώστε ")
-
                 },
                 text = {
                     Column(
@@ -124,10 +139,7 @@ fun ArtworkListScreen(navController: NavController, username: String) {
                     ) {
                         Button(onClick = {
                             val timestampEntry = System.currentTimeMillis()
-
-                            // Log user entering the artwork selection
                             logOrUpdateUserEmotion(context, username, artwork.id, null, timestampEntry, null)
-
                             navController.navigate("artworkDetail/${artwork.id}/$username/$timestampEntry")
                             selectedArtwork = null
                         }) {

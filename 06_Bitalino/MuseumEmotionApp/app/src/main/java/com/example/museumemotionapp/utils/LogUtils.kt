@@ -97,3 +97,18 @@ fun logAudioEmotion(
         println("⚠ ERROR: Failed to write log to ${logFile.absolutePath}")
     }
 }
+
+fun getVisitedArtworksFromLog(context: Context, username: String): Set<String> {
+    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+    val logFile = File(downloadsDir, "MuseumEmotion/$username/clickOnArtwork.txt")
+
+    if (!logFile.exists()) return emptySet()
+
+    return logFile.readLines()
+        .mapNotNull { line ->
+            val parts = line.split(" | ")
+            if (parts.size == 5 && parts[0] == username && parts[3] != "N/A") {
+                parts[1] // artworkId
+            } else null
+        }.toSet()
+}
