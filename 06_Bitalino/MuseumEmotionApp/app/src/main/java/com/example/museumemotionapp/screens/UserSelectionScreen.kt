@@ -8,39 +8,51 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.museumemotionapp.LocalFontScale
 
 @Composable
 fun UserSelectionScreen(navController: NavController) {
+    val scale = LocalFontScale.current.scale
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.weight(1f)) // Push content to center
+        Spacer(modifier = Modifier.weight(1f))
 
-        Text("Are you a new or existing user?")
-        Text("Είστε νέος χρήστης ή έχετε λογαριασμό;")
+        Text(
+            "Are you a new or existing user?",
+            fontSize = 18.sp * scale,
+            textAlign = TextAlign.Center
+        )
+        Text(
+            "Είστε νέος χρήστης ή έχετε λογαριασμό;",
+            fontSize = 18.sp * scale,
+            textAlign = TextAlign.Center
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
         Button(onClick = { navController.navigate("loginScreen") }) {
-            Text("New User / Νέος Χρήστης")
+            Text("New User / Νέος Χρήστης", fontSize = 16.sp * scale)
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
         Button(onClick = { navController.navigate("existingUserScreen") }) {
-            Text("Existing User / Υπάρχων Χρήστης")
+            Text("Existing User / Υπάρχων Χρήστης", fontSize = 16.sp * scale)
         }
 
-        Spacer(modifier = Modifier.weight(1f)) // Push footer to bottom
+        Spacer(modifier = Modifier.weight(1f))
 
-        // Footer (Copyright Text)
         Text(
             text = "© 2025 MMAI Team | University of the Aegean",
             color = Color.Gray,
+            fontSize = 12.sp * scale,
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()

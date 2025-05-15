@@ -17,12 +17,15 @@ import com.example.museumemotionapp.models.emotions
 import com.example.museumemotionapp.utils.logOrUpdateUserEmotion
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
-
+import androidx.compose.ui.unit.sp
+import com.example.museumemotionapp.LocalFontScale
 
 @Composable
 fun ArtworkDetailScreen(navController: NavController, artworkId: String, username: String, timestampEntry: Long) {
     val context = LocalContext.current
+    val scale = LocalFontScale.current.scale
     var selectedEmotion by remember { mutableStateOf<Emotion?>(null) }
+    var intensityLevel by remember { mutableStateOf(5f) }
 
     // **Disable Android Back Button**
     BackHandler {
@@ -35,8 +38,14 @@ fun ArtworkDetailScreen(navController: NavController, artworkId: String, usernam
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = "Artwork ID: $artworkId", style = MaterialTheme.typography.headlineMedium)
-        Text(text = "User: $username", style = MaterialTheme.typography.bodyMedium)
+        Text(
+            text = "Artwork ID: $artworkId",
+            style = MaterialTheme.typography.headlineMedium.copy(fontSize = 22.sp * scale)
+        )
+        Text(
+            text = "User: $username",
+            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 16.sp * scale)
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -45,8 +54,8 @@ fun ArtworkDetailScreen(navController: NavController, artworkId: String, usernam
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text(text = "Select how you feel about this artwork:")
-        Text(text = "Επιλέξτε το πως νιώθετε σχετικά με αυτό το έργο:")
+        Text(text = "Select how you feel about this artwork:", fontSize = 16.sp * scale)
+        Text(text = "Επιλέξτε το πως νιώθετε σχετικά με αυτό το έργο:", fontSize = 16.sp * scale)
 
         // Emotion Selection List
         Box(
@@ -66,8 +75,11 @@ fun ArtworkDetailScreen(navController: NavController, artworkId: String, usernam
                             onClick = { selectedEmotion = emotion }
                         )
                         Column(modifier = Modifier.padding(start = 8.dp)) {
-                            Text(text = "${emotion.id}. ${emotion.englishLabel}")
-                            Text(text = emotion.greekLabel, style = MaterialTheme.typography.bodySmall)
+                            Text(text = "${emotion.id}. ${emotion.englishLabel}", fontSize = 16.sp * scale)
+                            Text(
+                                text = emotion.greekLabel,
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp * scale)
+                            )
                         }
                     }
                 }
@@ -76,28 +88,49 @@ fun ArtworkDetailScreen(navController: NavController, artworkId: String, usernam
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // "Continue" Button - Always Visible
+        Text(text = "Emotion level | Ένταση  συναισθήματος", fontSize = 16.sp * scale)
+
+        Slider(
+            value = intensityLevel,
+            onValueChange = { intensityLevel = it },
+            valueRange = 0f..10f,
+            steps = 9,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Text(text = "Level | Επίπεδο: ${intensityLevel.toInt()}", fontSize = 16.sp * scale)
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         Button(
             onClick = {
                 val timestampExit = System.currentTimeMillis()
                 selectedEmotion?.let {
-                    logOrUpdateUserEmotion(context, username, artworkId, it.id, timestampEntry, timestampExit)
+                    logOrUpdateUserEmotion(
+                        context,
+                        username,
+                        artworkId,
+                        it.id,
+                        intensityLevel.toInt(),
+                        timestampEntry,
+                        timestampExit
+                    )
                     navController.navigate("audioPlayback/$artworkId/$username")
                 }
             },
             enabled = selectedEmotion != null,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Continue | Συνέχεια")
+            Text("Continue | Συνέχεια", fontSize = 18.sp * scale)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Footer (Copyright Text)
         Text(
             text = "© 2025 MMAI Team | University of the Aegean",
             color = Color.Gray,
             textAlign = TextAlign.Center,
+            fontSize = 12.sp * scale,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 8.dp)

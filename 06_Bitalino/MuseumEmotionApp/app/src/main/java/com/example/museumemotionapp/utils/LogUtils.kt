@@ -12,6 +12,7 @@ fun logOrUpdateUserEmotion(
     username: String,
     artworkId: String,
     emotionId: String?,
+    intensityLevel: Int?,
     timestampEntry: Long,
     timestampExit: Long?
 ) {
@@ -19,7 +20,6 @@ fun logOrUpdateUserEmotion(
     val userFolder = File(downloadsDir, "MuseumEmotion/$username")
     val logFile = File(userFolder, "clickOnArtwork.txt")
 
-    // Ensure directory exists
     if (!userFolder.exists()) {
         userFolder.mkdirs()
     }
@@ -27,21 +27,22 @@ fun logOrUpdateUserEmotion(
     val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
     val entryTime = sdf.format(Date(timestampEntry))
     val exitTime = timestampExit?.let { sdf.format(Date(it)) } ?: "N/A"
+    val intensity = intensityLevel?.toString() ?: "N/A"
 
     if (!logFile.exists()) {
         logFile.createNewFile()
+        logFile.writeText("username | artworkId | timestampEntry | emotionId | timestampExit | intensityLevel\n")
     }
 
     val lines = logFile.readLines().toMutableList()
     var found = false
 
-    // Check if entry already exists and update it
-    for (i in lines.indices) {
+    // Skip the header (line 0)
+    for (i in 1 until lines.size) {
         val parts = lines[i].split(" | ")
-        if (parts.size == 5 && parts[0] == username && parts[1] == artworkId) {
-            // If emotion is not logged yet, update the row
+        if (parts.size >= 5 && parts[0] == username && parts[1] == artworkId) {
             if (parts[3] == "N/A" && emotionId != null) {
-                lines[i] = "${parts[0]} | ${parts[1]} | ${parts[2]} | $emotionId | $exitTime"
+                lines[i] = "${parts[0]} | ${parts[1]} | ${parts[2]} | $emotionId | $exitTime | $intensity"
                 found = true
                 break
             }
@@ -49,12 +50,10 @@ fun logOrUpdateUserEmotion(
     }
 
     if (!found) {
-        // If no entry was found, append a new one
-        val logEntry = "$username | $artworkId | $entryTime | ${emotionId ?: "N/A"} | $exitTime\n"
+        val logEntry = "$username | $artworkId | $entryTime | ${emotionId ?: "N/A"} | $exitTime | $intensity"
         lines.add(logEntry)
     }
 
-    // Write updated content back to the file
     logFile.writeText(lines.joinToString("\n"))
 }
 
@@ -63,6 +62,7 @@ fun logAudioEmotion(
     username: String,
     artworkId: String,
     emotionId: String?,
+    intensityLevel: Int?,
     timestampEntry: Long,
     timestampExit: Long?
 ) {
@@ -70,31 +70,30 @@ fun logAudioEmotion(
     val userFolder = File(downloadsDir, "MuseumEmotion/$username")
     val logFile = File(userFolder, "audioEmotionLog.txt")
 
-    // Ensure the directory exists
     if (!userFolder.exists()) {
         userFolder.mkdirs()
     }
 
     val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
-
-    // Format timestamps correctly
     val entryTime = sdf.format(Date(timestampEntry))
     val exitTime = timestampExit?.let { sdf.format(Date(it)) } ?: "N/A"
+    val intensity = intensityLevel?.toString() ?: "N/A"
+
+    val logEntry = "$username | $artworkId | $entryTime | ${emotionId ?: "N/A"} | $exitTime | $intensity"
 
     if (!logFile.exists()) {
         logFile.createNewFile()
-    }
-
-    val logEntry = "$username | $artworkId | $entryTime | ${emotionId ?: "N/A"} | $exitTime\n"
-
-    try {
-        FileWriter(logFile, true).use { writer ->
-            writer.append(logEntry)
+        logFile.writeText("username | artworkId | timestampEntry | emotionId | timestampExit | intensityLevel\n$logEntry\n")
+    } else {
+        try {
+            FileWriter(logFile, true).use { writer ->
+                writer.append("$logEntry\n")
+            }
+            println("LOG WRITTEN: $logEntry")
+        } catch (e: Exception) {
+            e.printStackTrace()
+            println("⚠ ERROR: Failed to write log to ${logFile.absolutePath}")
         }
-        println("LOG WRITTEN: $logEntry") // Debugging Log
-    } catch (e: Exception) {
-        e.printStackTrace()
-        println("⚠ ERROR: Failed to write log to ${logFile.absolutePath}")
     }
 }
 
@@ -105,10 +104,11 @@ fun getVisitedArtworksFromLog(context: Context, username: String): Set<String> {
     if (!logFile.exists()) return emptySet()
 
     return logFile.readLines()
+        .drop(1) // skip header
         .mapNotNull { line ->
             val parts = line.split(" | ")
-            if (parts.size == 5 && parts[0] == username && parts[3] != "N/A") {
-                parts[1] // artworkId
+            if (parts.size >= 5 && parts[0] == username && parts[3] != "N/A") {
+                parts[1]
             } else null
         }.toSet()
 }

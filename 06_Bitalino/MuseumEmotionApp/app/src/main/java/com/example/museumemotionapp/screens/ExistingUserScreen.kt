@@ -12,12 +12,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.museumemotionapp.LocalFontScale
 import java.io.File
 
 @Composable
 fun ExistingUserScreen(navController: NavController) {
-    val users = getExistingUsers()  // Get list of existing users
+    val scale = LocalFontScale.current.scale
+    val users = getExistingUsers()
 
     Column(
         modifier = Modifier
@@ -25,32 +28,32 @@ fun ExistingUserScreen(navController: NavController) {
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Content wrapped in a centered Column
+        // Centered Content
         Column(
-            modifier = Modifier.weight(1f), // Pushes content to the middle of the screen
+            modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Back Button
             Button(onClick = { navController.popBackStack() }) {
-                Text("Back / Πίσω")
+                Text("Back / Πίσω", fontSize = 16.sp * scale)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            Text("Select an existing user")
-            Text("Επιλέξτε έναν υπάρχοντα χρήστη")
+            Text("Select an existing user", fontSize = 18.sp * scale)
+            Text("Επιλέξτε έναν υπάρχοντα χρήστη", fontSize = 18.sp * scale)
 
             Spacer(modifier = Modifier.height(16.dp))
 
             if (users.isEmpty()) {
-                Text("No existing users found!")
-                Text("Δεν βρέθηκαν χρήστες!")
+                Text("No existing users found!", fontSize = 16.sp * scale)
+                Text("Δεν βρέθηκαν χρήστες!", fontSize = 16.sp * scale)
             } else {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(300.dp) // Set a fixed height to keep it centered
+                        .height(300.dp)
                 ) {
                     items(users) { username ->
                         Card(
@@ -63,6 +66,7 @@ fun ExistingUserScreen(navController: NavController) {
                         ) {
                             Text(
                                 text = username,
+                                fontSize = 16.sp * scale,
                                 modifier = Modifier.padding(16.dp)
                             )
                         }
@@ -73,11 +77,11 @@ fun ExistingUserScreen(navController: NavController) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Footer (Copyright Text)
         Text(
             text = "© 2025 MMAI Team | University of the Aegean",
             color = Color.Gray,
             textAlign = TextAlign.Center,
+            fontSize = 12.sp * scale,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 8.dp)

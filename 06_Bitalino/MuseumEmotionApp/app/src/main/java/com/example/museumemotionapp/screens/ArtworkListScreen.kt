@@ -19,16 +19,16 @@ import androidx.navigation.NavController
 import com.example.museumemotionapp.models.Artwork
 import com.example.museumemotionapp.models.artworks
 import com.example.museumemotionapp.utils.logOrUpdateUserEmotion
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.sp
+import com.example.museumemotionapp.LocalFontScale
 
 @Composable
 fun ArtworkListScreen(navController: NavController, username: String) {
+    val scale = LocalFontScale.current.scale
     var searchText by remember { mutableStateOf("") }
     var selectedArtwork by remember { mutableStateOf<Artwork?>(null) }
     val context = LocalContext.current
 
-    // Visited artworks (loaded from log)
     val visitedArtworks = remember { mutableStateOf(setOf<String>()) }
 
     LaunchedEffect(username) {
@@ -43,19 +43,19 @@ fun ArtworkListScreen(navController: NavController, username: String) {
     ) {
         Text(
             "Select an Artwork",
-            style = TextStyle(fontSize = 24.sp),
+            fontSize = 24.sp * scale,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
         )
         Text(
             "Επιλέξτε ένα έργο τέχνης",
-            style = TextStyle(fontSize = 24.sp),
+            fontSize = 24.sp * scale,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
         )
         Text(
             "User: $username",
-            style = TextStyle(fontSize = 20.sp),
+            fontSize = 20.sp * scale,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
         )
@@ -66,7 +66,9 @@ fun ArtworkListScreen(navController: NavController, username: String) {
         OutlinedTextField(
             value = searchText,
             onValueChange = { searchText = it },
-            label = { Text("Search by ID / Αναζήτηση κατά ID") },
+            label = {
+                Text("Search by ID / Αναζήτηση κατά ID", fontSize = 14.sp * scale)
+            },
             keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
             modifier = Modifier
                 .fillMaxWidth()
@@ -96,6 +98,7 @@ fun ArtworkListScreen(navController: NavController, username: String) {
                         ) {
                             Text(
                                 text = "${artwork.id}: ${artwork.title} | ${artwork.greekTitle}",
+                                fontSize = 16.sp * scale,
                                 color = if (isVisited) Color.Gray else Color.Black
                             )
                         }
@@ -109,6 +112,7 @@ fun ArtworkListScreen(navController: NavController, username: String) {
             text = "© 2025 MMAI Team | University of the Aegean",
             color = Color.Gray,
             textAlign = TextAlign.Center,
+            fontSize = 12.sp * scale,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 8.dp)
@@ -119,15 +123,15 @@ fun ArtworkListScreen(navController: NavController, username: String) {
             AlertDialog(
                 onDismissRequest = { selectedArtwork = null },
                 title = {
-                    Text(text = "Confirm | Επιβεβαιώστε ")
+                    Text("Confirm | Επιβεβαιώστε", fontSize = 18.sp * scale)
                 },
                 text = {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("Is this the correct artwork?")
-                        Text("Είναι αυτό το σωστό έργο?")
+                        Text("Is this the correct artwork?", fontSize = 16.sp * scale)
+                        Text("Είναι αυτό το σωστό έργο?", fontSize = 16.sp * scale)
                         Spacer(modifier = Modifier.height(8.dp))
                         ImageFromAssets(context, artwork.id)
                     }
@@ -139,17 +143,17 @@ fun ArtworkListScreen(navController: NavController, username: String) {
                     ) {
                         Button(onClick = {
                             val timestampEntry = System.currentTimeMillis()
-                            logOrUpdateUserEmotion(context, username, artwork.id, null, timestampEntry, null)
+                            logOrUpdateUserEmotion(context, username, artwork.id, null, null, timestampEntry, null)
                             navController.navigate("artworkDetail/${artwork.id}/$username/$timestampEntry")
                             selectedArtwork = null
                         }) {
-                            Text("Yes / Ναι")
+                            Text("Yes / Ναι", fontSize = 16.sp * scale)
                         }
 
                         Spacer(modifier = Modifier.width(16.dp))
 
                         Button(onClick = { selectedArtwork = null }) {
-                            Text("No / Όχι")
+                            Text("No / Όχι", fontSize = 16.sp * scale)
                         }
                     }
                 }

@@ -15,7 +15,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
+import com.example.museumemotionapp.LocalFontScale
 import com.example.museumemotionapp.models.Emotion
 import com.example.museumemotionapp.models.emotions
 import com.example.museumemotionapp.utils.logAudioEmotion
@@ -26,19 +28,18 @@ import java.util.concurrent.TimeUnit
 @Composable
 fun AudioPlaybackScreen(navController: NavController, artworkId: String, username: String) {
     val context = LocalContext.current
+    val scale = LocalFontScale.current.scale
     val timestampEntry = remember { System.currentTimeMillis() }
     var selectedEmotion by remember { mutableStateOf<Emotion?>(null) }
+    var intensityLevel by remember { mutableStateOf(5f) }
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
     var isPlaying by remember { mutableStateOf(false) }
     var currentPosition by remember { mutableStateOf(0) }
     var duration by remember { mutableStateOf(1) }
-    val coroutineScope = rememberCoroutineScope()
     var showNoAudioDialog by remember { mutableStateOf(false) }
 
-    // Disable Back Button
-    BackHandler { /* Prevents back navigation manually */ }
+    BackHandler { }
 
-    // Check if the audio file exists
     LaunchedEffect(Unit) {
         try {
             context.assets.openFd("audio/$artworkId.mp3").close()
@@ -48,7 +49,6 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
         }
     }
 
-    // If no audio exists, show an alert and return to previous screen
     if (showNoAudioDialog) {
         AlertDialog(
             onDismissRequest = {
@@ -56,31 +56,29 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
                     popUpTo("artworkSelection/$username") { inclusive = true }
                 }
             },
-            title = { Text("Audio Not Available | Ήχος Μη Διαθέσιμος") },
-            text = { Text("There is no audio file for this artwork. | Το αρχείο ήχου δεν είναι διαθέσιμο γι' αυτό το έργο.") },
+            title = { Text("Audio Not Available | Ήχος Μη Διαθέσιμος", fontSize = 18.sp * scale) },
+            text = {
+                Text("There is no audio file for this artwork. | Το αρχείο ήχου δεν είναι διαθέσιμο γι' αυτό το έργο.",
+                    fontSize = 14.sp * scale)
+            },
             confirmButton = {
                 Button(onClick = {
                     navController.navigate("artworkSelection/$username") {
                         popUpTo("artworkSelection/$username") { inclusive = true }
                     }
                 }) {
-                    Text("OK")
+                    Text("OK", fontSize = 16.sp * scale)
                 }
             }
         )
-        return // Prevents further UI rendering
+        return
     }
 
-    // Create MediaPlayer only if the file exists
     DisposableEffect(Unit) {
         try {
-            val assetFileDescriptor = context.assets.openFd("audio/$artworkId.mp3")
+            val afd = context.assets.openFd("audio/$artworkId.mp3")
             val player = MediaPlayer().apply {
-                setDataSource(
-                    assetFileDescriptor.fileDescriptor,
-                    assetFileDescriptor.startOffset,
-                    assetFileDescriptor.length
-                )
+                setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
                 prepare()
                 start()
                 isPlaying = true
@@ -88,9 +86,7 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
             }
             mediaPlayer = player
 
-            onDispose {
-                player.release()
-            }
+            onDispose { player.release() }
         } catch (e: IOException) {
             Log.e("AudioPlaybackScreen", "Failed to load audio", e)
         }
@@ -101,7 +97,6 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
         }
     }
 
-    // **Restart progress update when playback state changes**
     LaunchedEffect(isPlaying) {
         while (isPlaying) {
             delay(500)
@@ -113,35 +108,27 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
+        modifier = Modifier.fillMaxSize().padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(text = "Listening to: $artworkId")
-        Text(text = "User: $username")
+        Text("Listening to: $artworkId", fontSize = 16.sp * scale)
+        Text("User: $username", fontSize = 16.sp * scale)
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Play, Pause, Stop Buttons
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center
-        ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
             Button(onClick = {
-                mediaPlayer?.start()
-                isPlaying = true
+                mediaPlayer?.start(); isPlaying = true
             }, enabled = mediaPlayer != null && !isPlaying) {
-                Text("▶ Play")
+                Text("▶ Play", fontSize = 16.sp * scale)
             }
 
             Spacer(modifier = Modifier.width(8.dp))
 
             Button(onClick = {
-                mediaPlayer?.pause()
-                isPlaying = false
+                mediaPlayer?.pause(); isPlaying = false
             }, enabled = mediaPlayer != null && isPlaying) {
-                Text("⏸ Pause")
+                Text("⏸ Pause", fontSize = 16.sp * scale)
             }
 
             Spacer(modifier = Modifier.width(8.dp))
@@ -150,23 +137,19 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
                 mediaPlayer?.stop()
                 mediaPlayer?.prepare()
                 isPlaying = false
-                currentPosition = 0 // **Reset progress bar**
+                currentPosition = 0
             }, enabled = mediaPlayer != null) {
-                Text("⏹ Stop")
+                Text("⏹ Stop", fontSize = 16.sp * scale)
             }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Seek -10s and +10s
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center
-        ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
             Button(onClick = {
                 mediaPlayer?.seekTo((mediaPlayer?.currentPosition ?: 0) - 10000)
             }, enabled = mediaPlayer != null) {
-                Text("⏪ -10s")
+                Text("⏪ -10s", fontSize = 16.sp * scale)
             }
 
             Spacer(modifier = Modifier.width(16.dp))
@@ -174,14 +157,17 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
             Button(onClick = {
                 mediaPlayer?.seekTo((mediaPlayer?.currentPosition ?: 0) + 10000)
             }, enabled = mediaPlayer != null) {
-                Text("⏩ +10s")
+                Text("⏩ +10s", fontSize = 16.sp * scale)
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-        Text("Time: ${formatTime(currentPosition)} / ${formatTime(duration)}")
 
-        // Progress Bar
+        Text(
+            "Time: ${formatTime(currentPosition)} / ${formatTime(duration)}",
+            fontSize = 14.sp * scale
+        )
+
         Slider(
             value = currentPosition.toFloat(),
             onValueChange = {
@@ -195,10 +181,9 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text(text = "Select how you feel while listening:")
-        Text(text = "Επιλέξτε πως νιώθετε ενώ ακούτε την παρουσίαση:")
+        Text("Select how you feel while listening:", fontSize = 16.sp * scale)
+        Text("Επιλέξτε πως νιώθετε ενώ ακούτε την παρουσίαση:", fontSize = 16.sp * scale)
 
-        // Emotion Selection
         Column(modifier = Modifier.weight(1f)) {
             LazyColumn {
                 items(emotions) { emotion ->
@@ -214,8 +199,11 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
                             onClick = { selectedEmotion = emotion }
                         )
                         Column(modifier = Modifier.padding(start = 8.dp)) {
-                            Text(text = "${emotion.id}. ${emotion.englishLabel}")
-                            Text(text = emotion.greekLabel, style = MaterialTheme.typography.bodySmall)
+                            Text("${emotion.id}. ${emotion.englishLabel}", fontSize = 16.sp * scale)
+                            Text(
+                                emotion.greekLabel,
+                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp * scale)
+                            )
                         }
                     }
                 }
@@ -224,12 +212,33 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Save & Exit Button
+        Text(text = "Emotion level | Ένταση  συναισθήματος", fontSize = 16.sp * scale)
+
+        Slider(
+            value = intensityLevel,
+            onValueChange = { intensityLevel = it },
+            valueRange = 0f..10f,
+            steps = 9,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Text("Level | Επίπεδο : ${intensityLevel.toInt()}", fontSize = 14.sp * scale)
+
+        Spacer(modifier = Modifier.height(16.dp))
+
         Button(
             onClick = {
                 val timestampExit = System.currentTimeMillis()
                 selectedEmotion?.let {
-                    logAudioEmotion(context, username, artworkId, it.id, timestampEntry, timestampExit)
+                    logAudioEmotion(
+                        context,
+                        username,
+                        artworkId,
+                        it.id,
+                        intensityLevel.toInt(),
+                        timestampEntry,
+                        timestampExit
+                    )
                 }
                 mediaPlayer?.release()
                 mediaPlayer = null
@@ -240,15 +249,15 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
             },
             enabled = selectedEmotion != null
         ) {
-            Text("Save & Exit | Αποθήκευση & Έξοδος")
+            Text("Save & Exit | Αποθήκευση & Έξοδος", fontSize = 16.sp * scale)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Footer (Copyright Text)
         Text(
             text = "© 2025 MMAI Team | University of the Aegean",
             color = Color.Gray,
+            fontSize = 12.sp * scale,
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()
@@ -257,7 +266,6 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
     }
 }
 
-// Helper function to format time
 fun formatTime(milliseconds: Int): String {
     val minutes = TimeUnit.MILLISECONDS.toMinutes(milliseconds.toLong())
     val seconds = TimeUnit.MILLISECONDS.toSeconds(milliseconds.toLong()) % 60
