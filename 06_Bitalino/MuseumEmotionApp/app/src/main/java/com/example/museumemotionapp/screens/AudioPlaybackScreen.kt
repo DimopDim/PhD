@@ -24,6 +24,7 @@ import com.example.museumemotionapp.utils.logAudioEmotion
 import kotlinx.coroutines.delay
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt
 
 @Composable
 fun AudioPlaybackScreen(navController: NavController, artworkId: String, username: String) {
@@ -31,7 +32,7 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
     val scale = LocalFontScale.current.scale
     val timestampEntry = remember { System.currentTimeMillis() }
     var selectedEmotion by remember { mutableStateOf<Emotion?>(null) }
-    var intensityLevel by remember { mutableStateOf(5f) }
+    var intensityLevel by remember { mutableStateOf(4f) }
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
     var isPlaying by remember { mutableStateOf(false) }
     var currentPosition by remember { mutableStateOf(0) }
@@ -212,18 +213,32 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text(text = "Emotion level | Ένταση  συναισθήματος", fontSize = 16.sp * scale)
+
+
+
+        val intensityDescriptions = mapOf(
+            1 to "Not at all | Καθόλου",
+            2 to "Very little | Πολύ λίγο",
+            3 to "A little | Λίγο",
+            4 to "Neutral | Ουδέτερα",
+            5 to "Quite a lot | Αρκετά",
+            6 to "Very much | Πολύ",
+            7 to "Extremely | Εξαιρετικά"
+        )
+
+        val roundedIntensity = intensityLevel.roundToInt().coerceIn(1, 7)
+        val description = intensityDescriptions[roundedIntensity] ?: ""
+
+        Text(description, fontSize = 14.sp * scale, color = Color.Gray)
 
         Slider(
             value = intensityLevel,
             onValueChange = { intensityLevel = it },
-            valueRange = 0f..10f,
-            steps = 9,
+            valueRange = 1f..7f,
+            steps = 5,
             modifier = Modifier.fillMaxWidth()
         )
-
-        Text("Level | Επίπεδο : ${intensityLevel.toInt()}", fontSize = 14.sp * scale)
-
+        Text(text = "Emotion level | Ένταση  συναισθήματος", fontSize = 16.sp * scale)
         Spacer(modifier = Modifier.height(16.dp))
 
         Button(
