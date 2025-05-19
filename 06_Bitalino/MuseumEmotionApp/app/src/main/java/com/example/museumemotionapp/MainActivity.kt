@@ -97,6 +97,27 @@ class MainActivity : ComponentActivity() {
                             val username = backStackEntry.arguments?.getString("username") ?: ""
                             AudioPlaybackScreen(navController, artworkId, username)
                         }
+                        composable("researchConsent/{username}",
+                            arguments = listOf(navArgument("username") { type = NavType.StringType })
+                        ) {
+                            val username = it.arguments?.getString("username") ?: ""
+                            ResearchConsentScreen(navController, username)
+                        }
+
+                        composable("researchInfo/{username}",
+                            arguments = listOf(navArgument("username") { type = NavType.StringType })
+                        ) {
+                            val username = it.arguments?.getString("username") ?: ""
+                            ResearchInfoScreen(navController, username)
+                        }
+
+                        composable("consentFormScreen/{username}",
+                            arguments = listOf(navArgument("username") { type = NavType.StringType })
+                        ) {
+                            val username = it.arguments?.getString("username") ?: ""
+                            ConsentFormScreen(navController, username)
+                        }
+
                     }
                 }
             }

@@ -94,7 +94,7 @@ fun LoginScreen(navController: NavController) {
                 confirmButton = {
                     Button(onClick = {
                         showSuccessDialog = false
-                        navController.navigate("artworkSelection/$username")
+                        navController.navigate("researchConsent/$username")
                     }) {
                         Text("OK", fontSize = 16.sp * scale)
                     }
