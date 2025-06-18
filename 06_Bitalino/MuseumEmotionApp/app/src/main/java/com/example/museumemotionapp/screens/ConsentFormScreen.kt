@@ -1,5 +1,6 @@
 package com.example.museumemotionapp.screens
 
+import android.app.Activity
 import android.os.Environment
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
@@ -25,11 +26,14 @@ import com.example.museumemotionapp.LocalFontScale
 import com.example.museumemotionapp.utils.saveConsentFormAsPdf
 import java.text.SimpleDateFormat
 import java.util.*
+import android.util.Log
+
 
 @Composable
 fun ConsentFormScreen(navController: NavController, username: String) {
     val scale = LocalFontScale.current.scale
     val context = LocalContext.current
+    val activity = context as? Activity
 
     val questions = listOf(
         "Έχω διαβάσει και έχω κατανοήσει το περιεχόμενο του Εντύπου Πληροφόρησης",
@@ -89,7 +93,6 @@ fun ConsentFormScreen(navController: NavController, username: String) {
                 .pointerInput(Unit) {
                     detectDragGestures(
                         onDragStart = { offset ->
-                            // Insert break before new stroke
                             signaturePoints.add(Offset.Unspecified)
                             signaturePoints.add(offset)
                         },
@@ -123,6 +126,16 @@ fun ConsentFormScreen(navController: NavController, username: String) {
                 }
             }
         }
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Button(
+            onClick = { signaturePoints.clear() },
+            colors = ButtonDefaults.buttonColors(containerColor = Color.LightGray)
+        ) {
+            Text("Καθαρισμός Υπογραφής", fontSize = 14.sp * scale, color = Color.Black)
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         Text("Ημερομηνία: $date", fontSize = 14.sp * scale)
 
@@ -147,18 +160,25 @@ fun ConsentFormScreen(navController: NavController, username: String) {
         Spacer(modifier = Modifier.height(24.dp))
 
         Button(onClick = {
+            Log.d("ConsentForm", "Signature points count: ${signaturePoints.size}")
+            signaturePoints.forEachIndexed { index, point ->
+                Log.d("ConsentForm", "Point $index: $point")
+            }
+
             saveConsentFormAsPdf(
                 context = context,
+                activity = activity,
                 username = username,
                 answers = answers,
                 participantName = participantName.value.text,
                 researcherName = researcherName.value.text,
                 date = date,
-                signaturePoints = signaturePoints
+                signaturePoints = signaturePoints.toList()
             )
             navController.navigate("artworkSelection/$username")
         }) {
             Text("Συνέχεια", fontSize = 16.sp * scale)
         }
+
     }
 }
