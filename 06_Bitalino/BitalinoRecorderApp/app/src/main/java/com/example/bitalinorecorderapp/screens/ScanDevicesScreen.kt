@@ -33,18 +33,12 @@ fun ScanDevicesScreen() {
     val coroutineScope = rememberCoroutineScope()
 
     var analog by remember { mutableStateOf<List<Int>>(emptyList()) }
-    var digital by remember { mutableStateOf<List<Int>>(emptyList()) }
 
     // 🔄 Observe signal updates
     LaunchedEffect(Unit) {
         coroutineScope.launch {
-            recorder.analogSignals.collectLatest {
-                analog = it
-            }
-        }
-        coroutineScope.launch {
-            recorder.digitalSignals.collectLatest {
-                digital = it
+            recorder.signalValue.collectLatest { values ->
+                analog = values ?: emptyList()
             }
         }
 
@@ -113,9 +107,6 @@ fun ScanDevicesScreen() {
         // 📊 Real-time signal display
         if (analog.isNotEmpty()) {
             Text("🔢 Analog: ${analog.joinToString(", ")}", style = MaterialTheme.typography.bodyLarge)
-        }
-        if (digital.isNotEmpty()) {
-            Text("🔘 Digital: ${digital.joinToString(", ")}", style = MaterialTheme.typography.bodyLarge)
         }
     }
 }

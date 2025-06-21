@@ -3,8 +3,10 @@ package com.example.bitalinorecorderapp.screens
 import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
+import android.content.Intent
 import android.os.Build
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -26,19 +28,56 @@ fun BitalinoMainScreen() {
     var selectedDevice by remember { mutableStateOf<BluetoothDevice?>(null) }
     var isScanning by remember { mutableStateOf(true) }
     val recorder = remember { BitalinoRecorder(context) }
-
     var analog by remember { mutableStateOf<List<Int>>(emptyList()) }
-    var digital by remember { mutableStateOf<List<Int>>(emptyList()) }
 
     val scope = rememberCoroutineScope()
+
+    // Huawei Auto-Launch Dialog
+    var showHuaweiDialog by remember { mutableStateOf(true) }
+
+    if (showHuaweiDialog) {
+        AlertDialog(
+            onDismissRequest = { showHuaweiDialog = false },
+            title = { Text("Huawei Auto-Launch") },
+            text = {
+                Text("To ensure background recording works reliably, please enable Auto-launch, Secondary launch, and Background activity for this app. Do you want to open these settings now?")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showHuaweiDialog = false
+                    try {
+                        val intent = Intent().apply {
+                            setClassName(
+                                "com.huawei.systemmanager",
+                                "com.huawei.systemmanager.startupmgr.ui.StartupNormalAppListActivity"
+                            )
+                        }
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        Toast.makeText(
+                            context,
+                            "Huawei-specific settings not available. Please check manually.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }) {
+                    Text("Yes")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showHuaweiDialog = false }) {
+                    Text("No")
+                }
+            }
+        )
+    }
 
     // 👂 Observe signal values
     LaunchedEffect(Unit) {
         scope.launch {
-            recorder.analogSignals.collectLatest { analog = it }
-        }
-        scope.launch {
-            recorder.digitalSignals.collectLatest { digital = it }
+            recorder.signalValue.collectLatest { values ->
+                analog = values ?: emptyList()
+            }
         }
 
         val hasPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -66,10 +105,11 @@ fun BitalinoMainScreen() {
         }
     }
 
-    Column(modifier = Modifier
-        .fillMaxSize()
-        .padding(16.dp)) {
-
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
         Text("Select BITalino Device", style = MaterialTheme.typography.titleLarge)
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -105,9 +145,6 @@ fun BitalinoMainScreen() {
 
             if (analog.isNotEmpty()) {
                 Text("Analog: ${analog.joinToString(", ")}", style = MaterialTheme.typography.bodyLarge)
-            }
-            if (digital.isNotEmpty()) {
-                Text("Digital: ${digital.joinToString(", ")}", style = MaterialTheme.typography.bodyLarge)
             }
         }
     }

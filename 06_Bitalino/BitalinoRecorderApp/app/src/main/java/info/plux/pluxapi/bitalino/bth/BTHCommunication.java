@@ -883,6 +883,23 @@ public class BTHCommunication extends BITalinoCommunication {
         alarmManager.set(AlarmManager.RTC_WAKEUP, Calendar.getInstance().getTimeInMillis() + WAIT_TIME_2SECONDS, pendingIntent);
     }
 
+    public void sendDigitalOutput(int outputMask) {
+        try {
+            byte CMD_SET_DIGITAL_OUTPUT = 0x06;
+            byte[] command = new byte[]{CMD_SET_DIGITAL_OUTPUT, (byte) outputMask};
+
+            if (mConnectedThread != null) {
+                mConnectedThread.write(command);  // ✅ Correct way to send custom command
+                Log.d("BTHCommunication", "✅ Digital output sent: " + outputMask);
+            } else {
+                Log.e("BTHCommunication", "❌ Cannot send: Not connected to BITalino.");
+            }
+        } catch (Exception e) {
+            Log.e("BTHCommunication", "❌ Error sending digital output", e);
+        }
+    }
+
+
 
 
 

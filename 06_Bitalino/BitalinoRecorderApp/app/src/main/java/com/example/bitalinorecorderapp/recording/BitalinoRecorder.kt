@@ -24,9 +24,7 @@ class BitalinoRecorder(private val context: Context) : OnBITalinoDataAvailable {
     private var writer: BufferedWriter? = null
     private val TAG = "BitalinoRecorder"
 
-    // Real-time signal flows
-    val analogSignals = MutableStateFlow<List<Int>>(emptyList())
-    val digitalSignals = MutableStateFlow<List<Int>>(emptyList())
+    val signalValue = MutableStateFlow<List<Int>?>(null)
 
     fun startRecording(device: BluetoothDevice) {
         try {
@@ -43,14 +41,13 @@ class BitalinoRecorder(private val context: Context) : OnBITalinoDataAvailable {
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
             val file = File(bitalinoDir, "bitalino_recording_$timestamp.csv")
             writer = BufferedWriter(FileWriter(file))
-            writer?.write("sequence,analog0,analog1,analog2,analog3,analog4,analog5,digital0,digital1,digital2,digital3\n")
+            writer?.write("sequence,analog0,analog1,analog2,analog3,analog4,analog5\n")
 
             bitalinoComm = BTHCommunication(context, this)
             bitalinoComm?.connect(device.address)
 
             Log.d(TAG, "🔌 Connecting to ${device.address}...")
 
-            // ⏳ Retry starting the stream until connected
             Thread {
                 var started = false
                 for (attempt in 1..10) {
@@ -58,6 +55,10 @@ class BitalinoRecorder(private val context: Context) : OnBITalinoDataAvailable {
                         val sampleRate = 100
                         val analogChannels = intArrayOf(0, 1, 2, 3, 4, 5)
                         bitalinoComm?.start(analogChannels, sampleRate)
+
+                        // ✅ Turn on LED at O1 (digital output bitmask 0b0001 = 1)
+                        (bitalinoComm as? BTHCommunication)?.sendDigitalOutput(0b1111) // Turn ON O1
+
                         started = true
                         Log.d(TAG, "▶️ BITalino started recording (attempt $attempt)")
                         break
@@ -86,10 +87,15 @@ class BitalinoRecorder(private val context: Context) : OnBITalinoDataAvailable {
 
     fun stopRecording() {
         try {
+            // ✅ Turn off LED at O1 (bitmask 0)
+            (bitalinoComm as? BTHCommunication)?.sendDigitalOutput(0b0001)  // Turn OFF all LEDs
+
+
             bitalinoComm?.stop()
             bitalinoComm?.disconnect()
             writer?.flush()
             writer?.close()
+
             Log.d(TAG, "✅ Recording stopped and file closed")
             Handler(Looper.getMainLooper()).post {
                 Toast.makeText(context, "Recording stopped", Toast.LENGTH_SHORT).show()
@@ -102,13 +108,10 @@ class BitalinoRecorder(private val context: Context) : OnBITalinoDataAvailable {
     override fun onBITalinoDataAvailable(bitalinoFrame: BITalinoFrame) {
         try {
             val sequence = bitalinoFrame.sequence
-            val analogValues = bitalinoFrame.analogArray?.toList() ?: List(6) { 0 }
-            val digitalValues = bitalinoFrame.digitalArray?.toList() ?: List(4) { 0 }
+            val analogValues = bitalinoFrame.analogArray
+            signalValue.value = analogValues.toList()
 
-            analogSignals.value = analogValues
-            digitalSignals.value = digitalValues
-
-            val line = "$sequence,${analogValues.joinToString(",")},${digitalValues.joinToString(",")}\n"
+            val line = "$sequence,${analogValues.joinToString(",")}\n"
             writer?.write(line)
         } catch (e: Exception) {
             Log.e(TAG, "⚠️ Error writing frame", e)
