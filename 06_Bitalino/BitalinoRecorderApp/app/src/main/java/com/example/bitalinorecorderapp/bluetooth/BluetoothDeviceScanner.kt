@@ -14,6 +14,7 @@ class BluetoothDeviceScanner(
     private val onDeviceFound: (BluetoothDevice) -> Unit
 ) {
     private val bluetoothAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
+    private var hasConnected = false
 
     fun startScan() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -23,7 +24,7 @@ class BluetoothDeviceScanner(
             ) == PackageManager.PERMISSION_GRANTED
 
             if (!hasPermission) {
-                Log.w("BluetoothScanner", "Missing BLUETOOTH_CONNECT permission")
+                Log.w("BluetoothScanner", "❌ Missing BLUETOOTH_CONNECT permission")
                 return
             }
         }
@@ -31,17 +32,23 @@ class BluetoothDeviceScanner(
         bluetoothAdapter?.bondedDevices?.forEach { device ->
             try {
                 val name = device.name
-                if (name?.startsWith("BITalino") == true) {
-                    Log.d("BluetoothScanner", "Found BITalino device: $name")
+                if (!hasConnected && name?.startsWith("BITalino") == true) {
+                    Log.d("BluetoothScanner", "✅ Found BITalino device: $name - ${device.address}")
+                    hasConnected = true
                     onDeviceFound(device)
+                    return  // Stop after first device found
                 }
             } catch (e: SecurityException) {
-                Log.e("BluetoothScanner", "Permission denied when accessing device name", e)
+                Log.e("BluetoothScanner", "❌ Permission denied when accessing device name", e)
             }
+        }
+
+        if (!hasConnected) {
+            Log.w("BluetoothScanner", "⚠️ No BITalino devices found among bonded devices")
         }
     }
 
     fun stopScan() {
-        // No need to stop bonded device discovery for BTH
+        // No need to stop bonded device scan for BTH
     }
 }

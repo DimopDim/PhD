@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.example.bitalinorecorderapp.bluetooth.BLEDeviceScanner
 import com.example.bitalinorecorderapp.recording.BitalinoRecorder
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 @Composable
 fun BitalinoMainScreen() {
@@ -25,8 +27,20 @@ fun BitalinoMainScreen() {
     var isScanning by remember { mutableStateOf(true) }
     val recorder = remember { BitalinoRecorder(context) }
 
-    // Launch BLE scan once
+    var analog by remember { mutableStateOf<List<Int>>(emptyList()) }
+    var digital by remember { mutableStateOf<List<Int>>(emptyList()) }
+
+    val scope = rememberCoroutineScope()
+
+    // 👂 Observe signal values
     LaunchedEffect(Unit) {
+        scope.launch {
+            recorder.analogSignals.collectLatest { analog = it }
+        }
+        scope.launch {
+            recorder.digitalSignals.collectLatest { digital = it }
+        }
+
         val hasPermission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) ==
                     android.content.pm.PackageManager.PERMISSION_GRANTED &&
@@ -41,13 +55,11 @@ fun BitalinoMainScreen() {
             BLEDeviceScanner(
                 context = context,
                 onDeviceFound = { device ->
-                    if (!devices.contains(device)) {
+                    if (!devices.any { it.address == device.address }) {
                         devices = devices + device
                     }
                 },
-                onScanFinished = {
-                    isScanning = false
-                }
+                onScanFinished = { isScanning = false }
             ).startScan()
         } else {
             Log.w("BitalinoMainScreen", "Missing required Bluetooth or Location permissions.")
@@ -87,6 +99,15 @@ fun BitalinoMainScreen() {
                 selectedDevice = null
             }) {
                 Text("Stop Recording")
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (analog.isNotEmpty()) {
+                Text("Analog: ${analog.joinToString(", ")}", style = MaterialTheme.typography.bodyLarge)
+            }
+            if (digital.isNotEmpty()) {
+                Text("Digital: ${digital.joinToString(", ")}", style = MaterialTheme.typography.bodyLarge)
             }
         }
     }
