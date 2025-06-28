@@ -26,7 +26,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Request runtime permissions
+        // Runtime permissions
         val permissions = mutableListOf<String>()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -47,6 +47,7 @@ class MainActivity : ComponentActivity() {
             permissions.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
         }
 
+        // Manage all files (Downloads access)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             if (!Environment.isExternalStorageManager()) {
                 Toast.makeText(this, "Requesting access to Downloads folder...", Toast.LENGTH_SHORT).show()
@@ -56,6 +57,7 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        // Request missing permissions
         val missingPermissions = permissions.filter {
             ContextCompat.checkSelfPermission(this, it) != android.content.pm.PackageManager.PERMISSION_GRANTED
         }
@@ -64,7 +66,11 @@ class MainActivity : ComponentActivity() {
             requestPermissionsLauncher.launch(missingPermissions.toTypedArray())
         }
 
+        // Ask to ignore battery optimizations
         requestIgnoreBatteryOptimizations()
+
+        // Launch persistent 1x1 invisible activity to keep app alive
+        launchPersistentActivity()
 
         setContent {
             BitalinoMainScreen()
@@ -81,13 +87,24 @@ class MainActivity : ComponentActivity() {
 
                 Toast.makeText(
                     this,
-                    "Please allow the app to ignore battery optimizations to keep recording running in the background.",
+                    "Please allow ignoring battery optimizations for uninterrupted background recording.",
                     Toast.LENGTH_LONG
                 ).show()
+
+                // Show dialog for Huawei users
+                showHuaweiAutoLaunchDialog()
             }
         }
     }
 
+    private fun showHuaweiAutoLaunchDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Allow Auto-launch on Huawei")
+            .setMessage("To ensure the app records signals in the background without interruptions, please allow it to auto-launch and run in the background.")
+            .setPositiveButton("Open Settings") { _, _ -> openHuaweiAutoLaunchSettings() }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
 
     private fun openHuaweiAutoLaunchSettings() {
         try {
@@ -100,9 +117,15 @@ class MainActivity : ComponentActivity() {
         } catch (e: Exception) {
             Toast.makeText(
                 this,
-                "Huawei-specific settings not available. Please manually check battery/app launch settings.",
+                "Huawei-specific settings not found. Please check battery and app launch settings manually.",
                 Toast.LENGTH_LONG
             ).show()
         }
+    }
+
+    private fun launchPersistentActivity() {
+        val intent = Intent(this, PersistentActivity::class.java)
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        startActivity(intent)
     }
 }

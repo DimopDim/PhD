@@ -34,6 +34,7 @@
         android:requestLegacyExternalStorage="true"
         tools:targetApi="31">
 
+        <!-- Main Activity -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -45,20 +46,22 @@
             </intent-filter>
         </activity>
 
-        <!-- Persistent Activity (without invalid theme) -->
+        <!-- Persistent 1x1 Pixel Activity -->
         <activity
             android:name=".PersistentActivity"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
             android:excludeFromRecents="true"
             android:taskAffinity=""
             android:launchMode="singleInstance"
+            android:alwaysRetainTaskState="true"
+            android:screenOrientation="portrait"
             android:exported="false" />
 
-        <!-- Foreground Service -->
+        <!-- Foreground Service for BITalino Recording -->
         <service
             android:name=".service.BitalinoRecordingService"
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
-
     </application>
 </manifest>

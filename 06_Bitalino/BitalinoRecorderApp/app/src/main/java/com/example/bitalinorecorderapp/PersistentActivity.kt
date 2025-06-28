@@ -19,6 +19,7 @@ class PersistentActivity : Activity() {
 
         // Transparent background
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-        finish() // Optional: remove this if you want it to stay open indefinitely
+
+        // ❗ Do NOT call finish(); we want this Activity to remain open invisibly
     }
 }

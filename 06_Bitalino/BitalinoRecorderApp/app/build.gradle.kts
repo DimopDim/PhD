@@ -40,23 +40,30 @@ android {
     buildFeatures {
         compose = true
     }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.11" // ✅ ensure compatibility with Compose BOM
+    }
 }
 
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
+
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-    implementation("androidx.compose.material3:material3:1.2.1") // or latest
-    implementation ("androidx.appcompat:appcompat:1.6.1") // ✅ Add this
+    implementation("androidx.compose.material3:material3:1.2.1")
+    implementation("androidx.appcompat:appcompat:1.6.1")
 
+    // ✅ Add Lifecycle ViewModel support for Jetpack Compose
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.6.2")
 
-    // Optional (if you use navigation or logging)
-    // implementation("androidx.navigation:navigation-compose:2.7.7")
+    // Optional for LiveData in Compose
     // implementation("androidx.compose.runtime:runtime-livedata:1.6.0")
 
     testImplementation(libs.junit)

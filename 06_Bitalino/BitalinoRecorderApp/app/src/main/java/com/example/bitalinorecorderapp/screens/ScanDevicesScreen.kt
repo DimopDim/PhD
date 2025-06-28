@@ -2,7 +2,7 @@ package com.example.bitalinorecorderapp.screens
 
 import android.Manifest
 import android.bluetooth.BluetoothDevice
-import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.util.Log
 import android.widget.Toast
@@ -16,32 +16,34 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.bitalinorecorderapp.bluetooth.BLEDeviceScanner
 import com.example.bitalinorecorderapp.bluetooth.BluetoothDeviceScanner
-import com.example.bitalinorecorderapp.recording.BitalinoRecorder
+import com.example.bitalinorecorderapp.service.BitalinoRecordingService
+import com.example.bitalinorecorderapp.viewmodel.SignalViewModel
+import com.example.bitalinorecorderapp.signal.AppSignalBus
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
+
 
 @Composable
 fun ScanDevicesScreen() {
     val context = LocalContext.current
-    val recorder = remember { BitalinoRecorder(context) }
-
     val foundDevices = remember { mutableStateListOf<BluetoothDevice>() }
     var isScanning by remember { mutableStateOf(true) }
+    var analogValues by remember { mutableStateOf<List<Int>>(emptyList()) }
 
-    val coroutineScope = rememberCoroutineScope()
+    val viewModel: SignalViewModel = viewModel()
 
-    var analog by remember { mutableStateOf<List<Int>>(emptyList()) }
-
-    // 🔄 Observe signal updates
+    // 🔁 Register ViewModel and observe signals
     LaunchedEffect(Unit) {
-        coroutineScope.launch {
-            recorder.signalValue.collectLatest { values ->
-                analog = values ?: emptyList()
-            }
+        AppSignalBus.registerViewModel(viewModel)
+
+        // Collect real-time signal updates
+        viewModel.analogSignalFlow.collectLatest { values ->
+            analogValues = values
         }
 
+        // Start scanning
         BluetoothDeviceScanner(context) { device ->
             if (!foundDevices.any { it.address == device.address }) {
                 foundDevices.add(device)
@@ -49,7 +51,7 @@ fun ScanDevicesScreen() {
         }.startScan()
 
         BLEDeviceScanner(
-            context,
+            context = context,
             onDeviceFound = { device ->
                 if (!foundDevices.any { it.address == device.address }) {
                     foundDevices.add(device)
@@ -59,10 +61,11 @@ fun ScanDevicesScreen() {
         ).startScan()
     }
 
-    Column(modifier = Modifier
-        .fillMaxSize()
-        .padding(16.dp)) {
-
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
         Text("Select a BITalino Device", style = MaterialTheme.typography.titleLarge)
 
         if (isScanning) {
@@ -71,12 +74,10 @@ fun ScanDevicesScreen() {
 
         LazyColumn {
             items(foundDevices) { device ->
-                val hasPermission = remember {
-                    ContextCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.BLUETOOTH_CONNECT
-                    ) == PackageManager.PERMISSION_GRANTED
-                }
+                val hasPermission = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.BLUETOOTH_CONNECT
+                ) == PackageManager.PERMISSION_GRANTED
 
                 Card(
                     modifier = Modifier
@@ -85,7 +86,11 @@ fun ScanDevicesScreen() {
                         .clickable(enabled = hasPermission) {
                             try {
                                 Toast.makeText(context, "Connecting to ${device.name}", Toast.LENGTH_SHORT).show()
-                                recorder.startRecording(device)
+
+                                val intent = Intent(context, BitalinoRecordingService::class.java)
+                                intent.putExtra("device_address", device.address)
+                                ContextCompat.startForegroundService(context, intent)
+
                             } catch (e: SecurityException) {
                                 Toast.makeText(context, "Missing Bluetooth permission", Toast.LENGTH_LONG).show()
                                 Log.e("ScanDevicesScreen", "SecurityException during connect", e)
@@ -104,9 +109,21 @@ fun ScanDevicesScreen() {
         Divider()
         Spacer(modifier = Modifier.height(8.dp))
 
-        // 📊 Real-time signal display
-        if (analog.isNotEmpty()) {
-            Text("🔢 Analog: ${analog.joinToString(", ")}", style = MaterialTheme.typography.bodyLarge)
+        Button(
+            onClick = {
+                val intent = Intent(context, BitalinoRecordingService::class.java)
+                context.stopService(intent)
+                Toast.makeText(context, "Recording stopped", Toast.LENGTH_SHORT).show()
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Stop Recording")
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        if (analogValues.isNotEmpty()) {
+            Text("Analog: ${analogValues.joinToString(", ")}", style = MaterialTheme.typography.bodyLarge)
         }
     }
 }
