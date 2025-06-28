@@ -42,6 +42,20 @@ fun BitalinoMainScreen() {
 
     var showHuaweiDialog by remember { mutableStateOf(true) }
 
+    fun startScan() {
+        isScanning = true
+        devices = emptyList()
+        BLEDeviceScanner(
+            context = context,
+            onDeviceFound = { device ->
+                if (!devices.any { it.address == device.address }) {
+                    devices = devices + device
+                }
+            },
+            onScanFinished = { isScanning = false }
+        ).startScan()
+    }
+
     if (showHuaweiDialog) {
         AlertDialog(
             onDismissRequest = { showHuaweiDialog = false },
@@ -108,15 +122,7 @@ fun BitalinoMainScreen() {
         }
 
         if (hasPermission) {
-            BLEDeviceScanner(
-                context = context,
-                onDeviceFound = { device ->
-                    if (!devices.any { it.address == device.address }) {
-                        devices = devices + device
-                    }
-                },
-                onScanFinished = { isScanning = false }
-            ).startScan()
+            startScan()
         } else {
             Log.w("BitalinoMainScreen", "Missing required Bluetooth or Location permissions.")
         }
@@ -128,6 +134,12 @@ fun BitalinoMainScreen() {
             .padding(16.dp)
     ) {
         Text("Select BITalino Device", style = MaterialTheme.typography.titleLarge)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Button(onClick = { startScan() }) {
+            Text("Scan for Devices")
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         if (isScanning) {
