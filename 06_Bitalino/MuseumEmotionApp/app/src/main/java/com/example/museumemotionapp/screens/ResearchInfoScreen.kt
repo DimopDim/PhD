@@ -1,21 +1,33 @@
 package com.example.museumemotionapp.screens
 
-import androidx.compose.runtime.Composable
+import android.os.Environment
+import android.util.Log
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.navigation.NavController
 import com.example.museumemotionapp.LocalFontScale
+import java.io.File
 
 @Composable
 fun ResearchInfoScreen(navController: NavController, username: String) {
     val scale = LocalFontScale.current.scale
+    val context = LocalContext.current
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var showDeletedMessageDialog by remember { mutableStateOf(false) }
+
+    // Disable back button
+    BackHandler(enabled = true) {
+        // Do nothing to block back navigation
+    }
 
     val infoText = remember {
         """
@@ -130,7 +142,7 @@ fun ResearchInfoScreen(navController: NavController, username: String) {
             .verticalScroll(rememberScrollState())
     ) {
         Text(
-            text = "Πληροφορίες για την Έρευνα",
+            text = "Information about the Survey\nΠληροφορίες για την Έρευνα",
             fontSize = 20.sp * scale,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
@@ -146,9 +158,77 @@ fun ResearchInfoScreen(navController: NavController, username: String) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Button(onClick = { navController.popBackStack() }) {
-            Text("🔙 Επιστροφή", fontSize = 16.sp * scale)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Button(onClick = { showDeleteDialog = true }) {
+                Text("I don't wish to participate\nΔεν επιθυμώ να συμμετάσχω", fontSize = 14.sp * scale)
+            }
+
+            Button(onClick = {
+                navController.navigate("consentFormScreen/$username")
+            }) {
+                Text("I wish to participate\nΕπιθυμώ να συμμετάσχω", fontSize = 14.sp * scale)
+            }
         }
     }
-}
 
+    // First dialog: confirm deletion
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            confirmButton = {
+                Button(onClick = {
+                    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                    val userFolder = File(downloadsDir, "MuseumEmotion/$username")
+                    if (userFolder.exists()) {
+                        userFolder.deleteRecursively()
+                        Log.d("ResearchInfoScreen", "Folder deleted: $userFolder")
+                    }
+                    showDeleteDialog = false
+                    showDeletedMessageDialog = true
+                }) {
+                    Text("Yes, delete\nΝαι, διαγραφή", fontSize = 14.sp * scale)
+                }
+            },
+            dismissButton = {
+                Button(onClick = { showDeleteDialog = false }) {
+                    Text("Cancel\nΆκυρο", fontSize = 14.sp * scale)
+                }
+            },
+            title = { Text("Confirmation | Επιβεβαίωση", fontSize = 18.sp * scale) },
+            text = {
+                Text(
+                    "Your participation will be cancelled and the data will be deleted.\nDo you wish to continue?\n\nΗ συμμετοχή σας θα ακυρωθεί και τα δεδομένα θα διαγραφούν.\nΕπιθυμείτε να συνεχίσετε;",
+                    fontSize = 14.sp * scale
+                )
+            }
+        )
+    }
+
+    // Second dialog: confirmation message after deletion
+    if (showDeletedMessageDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeletedMessageDialog = false },
+            confirmButton = {
+                Button(onClick = {
+                    showDeletedMessageDialog = false
+                    navController.navigate("userSelection") {
+                        popUpTo(0) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }) {
+                    Text("OK", fontSize = 14.sp * scale)
+                }
+            },
+            title = { Text("Completed | Ολοκληρώθηκε", fontSize = 18.sp * scale) },
+            text = {
+                Text(
+                    "The data have been deleted\n\nΤα δεδομένα διαγράφηκαν.",
+                    fontSize = 14.sp * scale
+                )
+            }
+        )
+    }
+}

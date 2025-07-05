@@ -64,6 +64,50 @@ fun wrapText(text: String, paint: Paint, maxWidth: Float): List<String> {
     return lines
 }
 
+fun drawSignature(
+    canvas: android.graphics.Canvas,
+    strokes: List<List<Offset>>,
+    boxLeft: Float,
+    boxTop: Float,
+    boxWidth: Float,
+    boxHeight: Float
+) {
+    val allPoints = strokes.flatten().filter { it != Offset.Unspecified && !it.x.isNaN() && !it.y.isNaN() }
+    if (allPoints.size <= 1) return
+
+    val minX = allPoints.minOf { it.x }
+    val maxX = allPoints.maxOf { it.x }
+    val minY = allPoints.minOf { it.y }
+    val maxY = allPoints.maxOf { it.y }
+
+    val width = maxX - minX
+    val height = maxY - minY
+    val scale = minOf(boxWidth / width, boxHeight / height)
+    val offsetX = boxLeft + (boxWidth - width * scale) / 2f
+    val offsetY = boxTop + (boxHeight - height * scale) / 2f
+
+    val paint = Paint().apply {
+        strokeWidth = 2f
+        style = Paint.Style.STROKE
+        color = Color.BLACK
+    }
+
+    for (stroke in strokes) {
+        for (i in 1 until stroke.size) {
+            val p1 = stroke[i - 1]
+            val p2 = stroke[i]
+            if (p1 == Offset.Unspecified || p2 == Offset.Unspecified) continue
+            canvas.drawLine(
+                offsetX + (p1.x - minX) * scale,
+                offsetY + (p1.y - minY) * scale,
+                offsetX + (p2.x - minX) * scale,
+                offsetY + (p2.y - minY) * scale,
+                paint
+            )
+        }
+    }
+}
+
 fun saveConsentFormAsPdf(
     context: Context,
     activity: Activity?,
@@ -72,7 +116,8 @@ fun saveConsentFormAsPdf(
     participantName: String,
     researcherName: String,
     date: String,
-    signaturePoints: List<Offset>
+    signaturePoints: List<List<Offset>>,
+    researcherSignaturePoints: List<List<Offset>>
 ) {
     fun isStoragePermissionGranted(): Boolean {
         val permission = Manifest.permission.WRITE_EXTERNAL_STORAGE
@@ -102,10 +147,13 @@ fun saveConsentFormAsPdf(
     try {
         val inputStream = context.assets.open("logo.png")
         val originalBitmap = BitmapFactory.decodeStream(inputStream)
-        val scaledBitmap = originalBitmap.scale(100, 100, filter = true)
-        val logoX = (pageInfo.pageWidth - 100) / 2f
+        val scaleFactor = 0.7f
+        val targetWidth = (originalBitmap.width * scaleFactor).toInt()
+        val targetHeight = (originalBitmap.height * scaleFactor).toInt()
+        val scaledBitmap = originalBitmap.scale(targetWidth, targetHeight, filter = true)
+        val logoX = (pageInfo.pageWidth - targetWidth) / 2f
         canvas.drawBitmap(scaledBitmap, logoX, y, null)
-        y += 115f
+        y += targetHeight + 15f
     } catch (e: Exception) {
         y += 15f
     }
@@ -147,7 +195,6 @@ fun saveConsentFormAsPdf(
     paint.isFakeBoldText = true
     canvas.drawText("Παρακαλούμε συμπληρώστε τα αντίστοιχα τετραγωνίδια για να δηλώσετε συναίνεση", 40f, y, paint)
     y += 5f
-    paint.isFakeBoldText = true
 
     val colQuestionX = 40f
     val colYesWidth = 35f
@@ -168,17 +215,17 @@ fun saveConsentFormAsPdf(
 
     val questions = listOf(
         "1. Έχω διαβάσει και έχω κατανοήσει το περιεχόμενο του Εντύπου Πληροφόρησης",
-        "2. Μου δόθηκε αρκετός χρόνος για να αποφασίσω...",
-        "3. Έχω λάβει ικανοποιητικές εξηγήσεις...",
-        "4. Καταλαβαίνω ότι η συμμετοχή μου είναι εθελοντική...",
-        "5. Κατανοώ ότι αν αποχωρήσω από την έρευνα...",
-        "6. Κατανοώ ότι μπορώ να ζητήσω να καταστραφούν οι πληροφορίες...",
-        "7. Γνωρίζω με ποιόν μπορώ να επικοινωνήσω...",
-        "8. Γνωρίζω σε ποιόν μπορώ να απευθυνθώ...",
-        "9. Καταλαβαίνω ότι η συμμετοχή μου περιλαμβάνει...",
-        "10. Θέλω η ταυτότητά μου να αποκαλυφθεί...",
+        "2. Μου δόθηκε αρκετός χρόνος για να αποφασίσω αν θέλω να συμμετέχω σε αυτή τη συζήτηση",
+        "3. Έχω λάβει ικανοποιητικές εξηγήσεις για τη διαχείριση των προσωπικών μου δεδομένων",
+        "4. Καταλαβαίνω ότι η συμμετοχή μου είναι εθελοντική και μπορώ να αποχωρήσω οποιαδήποτε στιγμή χωρίς να δώσω εξηγήσεις και χωρίς καμία συνέπεια",
+        "5. Κατανοώ ότι αν αποχωρήσω από την έρευνα τα δεδομένα μου θα καταστραφούν",
+        "6. Κατανοώ ότι μπορώ να ζητήσω να καταστραφούν οι πληροφορίες που έδωσα στο πλαίσιο της έρευνας μέχρι [ό,τι ισχύει]",
+        "7. Γνωρίζω με ποιόν μπορώ να επικοινωνήσω εάν επιθυμώ περισσότερες πληροφορίες για την έρευνα",
+        "8. Γνωρίζω σε ποιόν μπορώ να απευθυνθώ για παράπονα ή καταγγελίες",
+        "9. Καταλαβαίνω ότι η συμμετοχή μου περιλαμβάνει τη καταγραφή βίντεο και δεδομένων από τα οποία είναι δυνατή η αναγνώρισή μου κατά την χρήση τους για την προώθηση και παρουσίαση της έρευνας, ή κατά τη δημοσιοποίηση της συλλογής δεδομένων",
+        "10. Θέλω η ταυτότητά μου να αποκαλυφθεί σε πιθανές δημοσιεύσεις, παρουσιάσεις ή επιστημονικές αναφορές που θα προκύψουν από τη συγκεκριμένη μελέτη",
         "11. Γνωρίζω σε ποιόν μπορώ να απευθυνθώ για να ασκήσω τα δικαιώματά μου",
-        "12. Καταλαβαίνω ότι το σύνολο των δεδομένων μπορεί να είναι διαθέσιμο σε τρίτους"
+        "12. Καταλαβαίνω ότι το σύνολο των δεδομένων που θα προκύψει από την παρούσα έρευνα μπορεί να είναι διαθέσιμο σε τρίτους για ερευνητικούς σκοπούς"
     )
 
     val baseOffset = 8f
@@ -211,54 +258,23 @@ fun saveConsentFormAsPdf(
     canvas.drawText("Υπογραφή Συμμετέχοντος:", 40f, y, paint)
 
     val sigBoxTop = y + 5f
-    val sigBoxHeight = 80f
     val sigBoxLeft = 40f
-    val sigBoxRight = pageInfo.pageWidth - 40f
-    val sigBoxBottom = sigBoxTop + sigBoxHeight
-    val sigBoxWidth = sigBoxRight - sigBoxLeft
+    val sigBoxWidth = 200f
+    val sigBoxHeight = 50f
+    drawSignature(canvas, signaturePoints, sigBoxLeft, sigBoxTop, sigBoxWidth, sigBoxHeight)
+    y = sigBoxTop + sigBoxHeight + 10f
 
-    canvas.drawRect(sigBoxLeft, sigBoxTop, sigBoxRight, sigBoxBottom, linePaint)
-
-    val validPoints = signaturePoints.filter { it != Offset.Unspecified && !it.x.isNaN() && !it.y.isNaN() }
-    if (validPoints.size > 1) {
-        val sigMinX = validPoints.minOf { it.x }
-        val sigMaxX = validPoints.maxOf { it.x }
-        val sigMinY = validPoints.minOf { it.y }
-        val sigMaxY = validPoints.maxOf { it.y }
-
-        val normalizedWidth = sigMaxX - sigMinX
-        val normalizedHeight = sigMaxY - sigMinY
-
-        val scaleX = sigBoxWidth / normalizedWidth
-        val scaleY = sigBoxHeight / normalizedHeight
-        val scale = minOf(scaleX, scaleY)
-
-        val offsetX = sigBoxLeft + (sigBoxWidth - normalizedWidth * scale) / 2f
-        val offsetY = sigBoxTop + (sigBoxHeight - normalizedHeight * scale) / 2f
-
-        val sigPaint = Paint().apply {
-            strokeWidth = 2f
-            style = Paint.Style.STROKE
-            color = Color.BLACK
-        }
-
-        for (i in 1 until validPoints.size) {
-            val p1 = validPoints[i - 1]
-            val p2 = validPoints[i]
-            if (p1 == Offset.Unspecified || p2 == Offset.Unspecified) continue
-            val startX = offsetX + ((p1.x - sigMinX) * scale)
-            val startY = offsetY + ((p1.y - sigMinY) * scale)
-            val endX = offsetX + ((p2.x - sigMinX) * scale)
-            val endY = offsetY + ((p2.y - sigMinY) * scale)
-            canvas.drawLine(startX, startY, endX, endY, sigPaint)
-        }
-    }
-
-    y = sigBoxBottom + 10f
     canvas.drawText("Ονοματεπώνυμο Ερευνητή: $researcherName", 40f, y, paint)
     y += 20f
-    canvas.drawText("Υπογραφή: __________________", 40f, y, paint)
-    y += 20f
+    canvas.drawText("Υπογραφή Ερευνητή:", 40f, y, paint)
+
+    val resSigBoxTop = y + 5f
+    val resSigBoxLeft = 40f
+    val resSigBoxWidth = 200f
+    val resSigBoxHeight = 50f
+    drawSignature(canvas, researcherSignaturePoints, resSigBoxLeft, resSigBoxTop, resSigBoxWidth, resSigBoxHeight)
+    y = resSigBoxTop + resSigBoxHeight + 10f
+
     canvas.drawText("Ημερομηνία: $date", 40f, y, paint)
 
     document.finishPage(page)

@@ -89,13 +89,16 @@ fun ExistingUserScreen(navController: NavController) {
     }
 }
 
-// Function to get existing users from "Download/MuseumEmotion/"
+// Function to get existing users from "Download/MuseumEmotion/", sorted by last modified
 fun getExistingUsers(): List<String> {
     val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
     val museumEmotionFolder = File(downloadsDir, "MuseumEmotion")
 
     return if (museumEmotionFolder.exists()) {
-        museumEmotionFolder.list()?.toList() ?: emptyList()
+        museumEmotionFolder.listFiles()
+            ?.filter { it.isDirectory }
+            ?.sortedByDescending { it.lastModified() } // Sort by last modified (most recent first)
+            ?.map { it.name } ?: emptyList()
     } else {
         emptyList()
     }
