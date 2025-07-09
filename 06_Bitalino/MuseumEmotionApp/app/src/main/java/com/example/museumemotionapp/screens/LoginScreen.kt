@@ -37,7 +37,10 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 @Composable
-fun LoginScreen(navController: NavController) {
+fun LoginScreen(
+    navController: NavController,
+    onUsernameConfirmed: (String) -> Unit
+) {
     val context = LocalContext.current
     val activity = context as? Activity
     val scale = LocalFontScale.current.scale
@@ -180,7 +183,7 @@ fun LoginScreen(navController: NavController) {
                     confirmButton = {
                         Button(onClick = {
                             showSuccessDialog = false
-                            navController.navigate("researchInfo/$username")
+                            onUsernameConfirmed(username)
                         }) {
                             Text("OK", fontSize = 16.sp * scale)
                         }

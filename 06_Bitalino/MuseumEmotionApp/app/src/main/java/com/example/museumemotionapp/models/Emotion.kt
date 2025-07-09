@@ -25,5 +25,6 @@ val emotions = listOf(
     Emotion("19", "Anger", "Με θύμωσε"),
     Emotion("20", "Uneasiness", "Με ανησύχησε"),
     Emotion("21", "Sadness", "Με στεναχώρησε"),
-    Emotion("22", "No special feeling", "Δεν αισθάνθηκα τίποτα το ιδιαίτερο")
+    Emotion("22", "No special feeling", "Δεν αισθάνθηκα τίποτα το ιδιαίτερο"),
+    Emotion("23", "Other", "Άλλο")
 )

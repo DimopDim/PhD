@@ -33,11 +33,16 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
     val timestampEntry = remember { System.currentTimeMillis() }
     var selectedEmotion by remember { mutableStateOf<Emotion?>(null) }
     var intensityLevel by remember { mutableStateOf(4f) }
+    var sliderTouched by remember { mutableStateOf(false) }
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
     var isPlaying by remember { mutableStateOf(false) }
     var currentPosition by remember { mutableStateOf(0) }
     var duration by remember { mutableStateOf(1) }
     var showNoAudioDialog by remember { mutableStateOf(false) }
+
+    // For custom "Other" emotion
+    var showCustomEmotionDialog by remember { mutableStateOf(false) }
+    var customEmotionText by remember { mutableStateOf("") }
 
     BackHandler { }
 
@@ -59,8 +64,10 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
             },
             title = { Text("Audio Not Available | Ήχος Μη Διαθέσιμος", fontSize = 18.sp * scale) },
             text = {
-                Text("There is no audio file for this artwork. | Το αρχείο ήχου δεν είναι διαθέσιμο γι' αυτό το έργο.",
-                    fontSize = 14.sp * scale)
+                Text(
+                    "There is no audio file for this artwork. | Το αρχείο ήχου δεν είναι διαθέσιμο γι' αυτό το έργο.",
+                    fontSize = 14.sp * scale
+                )
             },
             confirmButton = {
                 Button(onClick = {
@@ -164,10 +171,7 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text(
-            "Time: ${formatTime(currentPosition)} / ${formatTime(duration)}",
-            fontSize = 14.sp * scale
-        )
+        Text("Time: ${formatTime(currentPosition)} / ${formatTime(duration)}", fontSize = 14.sp * scale)
 
         Slider(
             value = currentPosition.toFloat(),
@@ -193,28 +197,55 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(8.dp)
-                            .clickable { selectedEmotion = emotion }
+                            .clickable {
+                                selectedEmotion = emotion
+                                if (emotion.id.toIntOrNull() == 23) {
+                                    showCustomEmotionDialog = true
+                                    customEmotionText = ""
+                                }
+                            }
                     ) {
                         RadioButton(
                             selected = selectedEmotion == emotion,
-                            onClick = { selectedEmotion = emotion }
+                            onClick = {
+                                selectedEmotion = emotion
+                                if (emotion.id.toIntOrNull() == 23) {
+                                    showCustomEmotionDialog = true
+                                    customEmotionText = ""
+                                }
+                            }
                         )
                         Column(modifier = Modifier.padding(start = 8.dp)) {
                             Text("${emotion.id}. ${emotion.englishLabel}", fontSize = 16.sp * scale)
-                            Text(
-                                emotion.greekLabel,
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp * scale)
-                            )
+                            Text(emotion.greekLabel, style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp * scale))
                         }
                     }
                 }
             }
         }
 
+        if (showCustomEmotionDialog) {
+            AlertDialog(
+                onDismissRequest = { showCustomEmotionDialog = false },
+                confirmButton = {
+                    TextButton(onClick = { showCustomEmotionDialog = false }) {
+                        Text("OK")
+                    }
+                },
+                title = { Text("Περιγράψτε το συναίσθημα") },
+                text = {
+                    OutlinedTextField(
+                        value = customEmotionText,
+                        onValueChange = { customEmotionText = it },
+                        label = { Text("Πληκτρολογίστε αυτό που νιώθετε") },
+                        singleLine = false,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            )
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
-
-
-
 
         val intensityDescriptions = mapOf(
             1 to "Not at all | Καθόλου",
@@ -225,26 +256,39 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
             6 to "Very much | Πολύ",
             7 to "Extremely | Εξαιρετικά"
         )
-
         val roundedIntensity = intensityLevel.roundToInt().coerceIn(1, 7)
         val description = intensityDescriptions[roundedIntensity] ?: ""
 
-        Text(description, fontSize = 14.sp * scale, color = Color.Gray)
+        Text(description, fontSize = 14.sp * scale, color = if (selectedEmotion != null) Color.Gray else Color.LightGray)
 
         Slider(
             value = intensityLevel,
-            onValueChange = { intensityLevel = it },
+            onValueChange = {
+                intensityLevel = it
+                if (!sliderTouched) sliderTouched = true
+            },
             valueRange = 1f..7f,
             steps = 5,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            enabled = selectedEmotion != null
         )
-        Text(text = "Emotion level | Ένταση  συναισθήματος", fontSize = 16.sp * scale)
+
+        Text(
+            "Emotion level | Ένταση συναισθήματος",
+            fontSize = 16.sp * scale,
+            color = if (selectedEmotion != null) Color.Unspecified else Color.LightGray
+        )
+
         Spacer(modifier = Modifier.height(16.dp))
 
         Button(
             onClick = {
                 val timestampExit = System.currentTimeMillis()
                 selectedEmotion?.let {
+                    val label = if (it.id.toIntOrNull() == 23)
+                        customEmotionText.trim().ifEmpty { "Other (no description)" }
+                    else it.greekLabel
+
                     logAudioEmotion(
                         context,
                         username,
@@ -252,9 +296,11 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
                         it.id,
                         intensityLevel.toInt(),
                         timestampEntry,
-                        timestampExit
+                        timestampExit,
+                        label
                     )
                 }
+
                 mediaPlayer?.release()
                 mediaPlayer = null
 
@@ -262,7 +308,8 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
                     popUpTo("artworkSelection/$username") { inclusive = true }
                 }
             },
-            enabled = selectedEmotion != null
+            enabled = selectedEmotion != null && sliderTouched,
+            modifier = Modifier.fillMaxWidth()
         ) {
             Text("Save & Exit | Αποθήκευση & Έξοδος", fontSize = 16.sp * scale)
         }

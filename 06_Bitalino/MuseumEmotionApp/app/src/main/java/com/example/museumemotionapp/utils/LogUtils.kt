@@ -14,7 +14,8 @@ fun logOrUpdateUserEmotion(
     emotionId: String?,
     intensityLevel: Int?,
     timestampEntry: Long,
-    timestampExit: Long?
+    timestampExit: Long?,
+    emotionLabel: String?
 ) {
     val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
     val userFolder = File(downloadsDir, "MuseumEmotion/$username")
@@ -28,21 +29,22 @@ fun logOrUpdateUserEmotion(
     val entryTime = sdf.format(Date(timestampEntry))
     val exitTime = timestampExit?.let { sdf.format(Date(it)) } ?: "N/A"
     val intensity = intensityLevel?.toString() ?: "N/A"
+    val label = emotionLabel ?: "N/A"
 
     if (!logFile.exists()) {
         logFile.createNewFile()
-        logFile.writeText("username | artworkId | timestampEntry | emotionId | timestampExit | intensityLevel\n")
+        logFile.writeText("username | artworkId | timestampEntry | emotionId | timestampExit | intensityLevel | emotionLabel\n")
     }
 
     val lines = logFile.readLines().toMutableList()
     var found = false
 
-    // Skip the header (line 0)
+    // Skip header
     for (i in 1 until lines.size) {
         val parts = lines[i].split(" | ")
         if (parts.size >= 5 && parts[0] == username && parts[1] == artworkId) {
             if (parts[3] == "N/A" && emotionId != null) {
-                lines[i] = "${parts[0]} | ${parts[1]} | ${parts[2]} | $emotionId | $exitTime | $intensity"
+                lines[i] = "${parts[0]} | ${parts[1]} | ${parts[2]} | $emotionId | $exitTime | $intensity | $label"
                 found = true
                 break
             }
@@ -50,7 +52,7 @@ fun logOrUpdateUserEmotion(
     }
 
     if (!found) {
-        val logEntry = "$username | $artworkId | $entryTime | ${emotionId ?: "N/A"} | $exitTime | $intensity"
+        val logEntry = "$username | $artworkId | $entryTime | ${emotionId ?: "N/A"} | $exitTime | $intensity | $label"
         lines.add(logEntry)
     }
 
@@ -64,7 +66,8 @@ fun logAudioEmotion(
     emotionId: String?,
     intensityLevel: Int?,
     timestampEntry: Long,
-    timestampExit: Long?
+    timestampExit: Long?,
+    emotionLabel: String?
 ) {
     val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
     val userFolder = File(downloadsDir, "MuseumEmotion/$username")
@@ -78,22 +81,23 @@ fun logAudioEmotion(
     val entryTime = sdf.format(Date(timestampEntry))
     val exitTime = timestampExit?.let { sdf.format(Date(it)) } ?: "N/A"
     val intensity = intensityLevel?.toString() ?: "N/A"
+    val label = emotionLabel ?: "N/A"
 
-    val logEntry = "$username | $artworkId | $entryTime | ${emotionId ?: "N/A"} | $exitTime | $intensity"
+    val logEntry = "$username | $artworkId | $entryTime | ${emotionId ?: "N/A"} | $exitTime | $intensity | $label"
 
     if (!logFile.exists()) {
         logFile.createNewFile()
-        logFile.writeText("username | artworkId | timestampEntry | emotionId | timestampExit | intensityLevel\n$logEntry\n")
-    } else {
-        try {
-            FileWriter(logFile, true).use { writer ->
-                writer.append("$logEntry\n")
-            }
-            println("LOG WRITTEN: $logEntry")
-        } catch (e: Exception) {
-            e.printStackTrace()
-            println("⚠ ERROR: Failed to write log to ${logFile.absolutePath}")
+        logFile.writeText("username | artworkId | timestampEntry | emotionId | timestampExit | intensityLevel | emotionLabel\n")
+    }
+
+    try {
+        FileWriter(logFile, true).use { writer ->
+            writer.append("$logEntry\n")
         }
+        println("LOG WRITTEN: $logEntry")
+    } catch (e: Exception) {
+        e.printStackTrace()
+        println("⚠ ERROR: Failed to write log to ${logFile.absolutePath}")
     }
 }
 

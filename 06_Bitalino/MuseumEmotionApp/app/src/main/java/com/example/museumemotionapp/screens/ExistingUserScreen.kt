@@ -18,7 +18,10 @@ import com.example.museumemotionapp.LocalFontScale
 import java.io.File
 
 @Composable
-fun ExistingUserScreen(navController: NavController) {
+fun ExistingUserScreen(
+    navController: NavController,
+    onUsernameSelected: (String) -> Unit
+) {
     val scale = LocalFontScale.current.scale
     val users = getExistingUsers()
 
@@ -61,6 +64,7 @@ fun ExistingUserScreen(navController: NavController) {
                                 .fillMaxWidth()
                                 .padding(8.dp)
                                 .clickable {
+                                    onUsernameSelected(username)
                                     navController.navigate("artworkSelection/$username")
                                 }
                         ) {
@@ -97,7 +101,7 @@ fun getExistingUsers(): List<String> {
     return if (museumEmotionFolder.exists()) {
         museumEmotionFolder.listFiles()
             ?.filter { it.isDirectory }
-            ?.sortedByDescending { it.lastModified() } // Sort by last modified (most recent first)
+            ?.sortedByDescending { it.lastModified() }
             ?.map { it.name } ?: emptyList()
     } else {
         emptyList()

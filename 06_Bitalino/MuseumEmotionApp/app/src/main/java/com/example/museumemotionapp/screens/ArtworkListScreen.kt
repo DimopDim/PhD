@@ -143,7 +143,7 @@ fun ArtworkListScreen(navController: NavController, username: String) {
                     ) {
                         Button(onClick = {
                             val timestampEntry = System.currentTimeMillis()
-                            logOrUpdateUserEmotion(context, username, artwork.id, null, null, timestampEntry, null)
+                            logOrUpdateUserEmotion(context, username, artwork.id, null, null, timestampEntry, null, "N/A")
                             navController.navigate("artworkDetail/${artwork.id}/$username/$timestampEntry")
                             selectedArtwork = null
                         }) {

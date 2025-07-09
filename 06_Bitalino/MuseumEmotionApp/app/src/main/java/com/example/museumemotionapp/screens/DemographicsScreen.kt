@@ -51,6 +51,7 @@ fun DemographicsScreen(navController: NavController, username: String) {
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .imePadding() // <-- this makes room for the keyboard
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
@@ -63,7 +64,7 @@ fun DemographicsScreen(navController: NavController, username: String) {
                 .fillMaxSize()
                 .padding(16.dp)
                 .verticalScroll(scrollState)
-                .bringIntoViewRequester(bringIntoViewRequester)
+                .consumeWindowInsets(PaddingValues()) // avoid layout shifts
         ) {
             Text("Παρακαλώ απαντήστε στις παρακάτω ερωτήσεις.", fontSize = 18.sp)
             Spacer(modifier = Modifier.height(16.dp))
@@ -166,7 +167,7 @@ fun DemographicsScreen(navController: NavController, username: String) {
                     e.printStackTrace()
                 }
 
-                navController.navigate("artworkSelection/$username")
+                navController.navigate("panasBegin/$username")
             }) {
                 Text("Συνέχεια", fontSize = 16.sp)
             }
