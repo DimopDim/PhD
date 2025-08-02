@@ -1,4 +1,36 @@
-"""CIR-03: Hierarchical Imputation Framework"""
+"""
+======================================================================================================
+CIR-03: Hierarchical Imputation Framework (MPI-Parallelized)
+======================================================================================================
+
+This script implements a **dynamic hierarchical imputation framework** for clinical datasets with 
+missing values. The goal is to fill in missing values row-wise based on the percentage of missingness 
+per row, applying increasingly sophisticated methods as missingness increases.
+
+Key Features:
+------------------------------------------------------------------------------------------------------
+ - Utilizes MPI (via `mpi4py`) to parallelize imputation across multiple CPU cores/nodes.
+ - Groups rows into imputation buckets based on % of missing values (e.g., 0–5%, 5–10%, ..., 90–100%).
+ - Applies different imputation techniques per group:
+ -   - Simple (mean, median, KNN)
+ -   - Model-based (Iterative, XGBoost)
+ -   - Deep Learning (LSTM, GRU)
+ -   - GAN-based (GAIN-style)
+ - Caches intermediate results to avoid recomputation.
+ - Logs detailed progress, runtime, and method usage per row.
+ - Generates diagnostic plots showing cumulative rows imputed per method and group.
+ - Saves results and logs per MPI rank in organized folders (`CSV/exports/CIR-16/impute/...`).
+
+Usage Context:
+------------------------------------------------------------------------------------------------------
+This framework is used in medical AI research, especially for ICU time-series datasets (e.g., MIMIC-IV, 
+eICU), where missingness is not random and requires methodologically robust imputation strategies.
+
+Developed by: [Your Name / Team]
+Paper Ref: [If applicable]
+======================================================================================================
+"""
+
 import os
 import sys
 import pandas as pd
