@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 import io
 import sys
+import glob
 import time
 import logging
 import copy
@@ -18,6 +19,7 @@ from xgboost import XGBRegressor
 
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
+from sklearn.linear_model import BayesianRidge, Ridge
 from sklearn.ensemble import ExtraTreesRegressor
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.utils.validation import check_is_fitted
@@ -27,7 +29,7 @@ from tensorflow.keras.layers import Input, LSTM, RepeatVector, Dense, Concatenat
 from tensorflow.keras.optimizers import Adam
 
 """----------------------------------------------------------------------------------------------------------------------"""
-""" Logging Config"""
+
 # --- MPI Setup ---
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
@@ -37,6 +39,8 @@ rank = MPI.COMM_WORLD.Get_rank()
 print(f"[Rank {rank}] Initialized successfully.")
 
 
+
+""" Logging Config"""
 # === Initial logger setup ===
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -377,7 +381,7 @@ def rnn_imputer(df, random_state=0, epochs=1000, batch_size=64, mask_ratio=0.2, 
     if _rnn_model is None:
         input_layer = Input(shape=(1, input_dim))
         encoded = GRU(64, activation='relu', return_sequences=False)(input_layer)
-        encoded = Dropout(0.2)(encoded)  # 🧬 Dropout added
+        encoded = Dropout(0.2)(encoded)  # Dropout added
         repeated = RepeatVector(1)(encoded)
         decoded = GRU(input_dim, activation='sigmoid', return_sequences=True)(repeated)
         _rnn_model = Model(inputs=input_layer, outputs=decoded)
@@ -472,16 +476,23 @@ def impute_with_iterative(input_df, method, output_path, n_iter, log_verbose_fil
         estimator = ExtraTreesRegressor(n_estimators=5, random_state=0, n_jobs=-1)
     elif method == "HistGradientBoosting":
         estimator = HistGradientBoostingRegressor(random_state=0)
+    elif method == "BayesianRidge":
+        estimator = BayesianRidge()
+    elif method == "Ridge":
+        estimator = Ridge(alpha=1.0, random_state=0)
     else:
         raise ValueError(f"Unsupported method: {method}. Use 'ExtraTrees' or 'HistGradientBoosting'.")
-
+    
     imputer = IterativeImputer(
-        estimator=estimator,
-        max_iter=n_iter,
-        random_state=0,
-        verbose=2,
-        sample_posterior=False
-    )
+        estimator=estimator,          
+        max_iter=n_iter,              
+        random_state=0,               
+        verbose=2,                    
+        sample_posterior=False,       
+        tol=1e-3,                     
+        initial_strategy='mean',      
+        imputation_order='ascending'  
+)
 
     start_time = time.time()
 
@@ -527,9 +538,9 @@ imputer_registry = {
     "knn": KNNImputer(n_neighbors=5, weights="uniform"),
     "iterative_function": lambda df, random_state=0: impute_with_iterative(
         input_df=df,
-        method="ExtraTrees",
+        method="ExtraTrees", # BayesianRidge or ExtraTrees or Ridge
         output_path="imputed_outputs/tmp.csv",
-        n_iter=5
+        n_iter=8
     ),
     "iterative_simple": IterativeImputer(estimator=ExtraTreesRegressor(n_estimators=10, random_state=42),
                                    max_iter=10, random_state=42),
@@ -613,29 +624,50 @@ def hierarchical_impute_dynamic(
             continue
 
         method_name = method_names[i]
-        logging.info(f"[{dataset_name}][Group {i+1}] ({lower_bound:.2f}, {upper_bound:.2f}] -> {method_name} | {len(group_data)} rows")
-
         imputer = get_imputer(method_name, method_registry)
+
+        # === Checkpoint path ===
+        checkpoint_dir = os.path.join("CSV/exports/CIR-16/impute/threshold", 
+                                      f"seq_{plot_id:02d}_{'_'.join(method_names)}")
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        temp_path = os.path.join(checkpoint_dir, f"{dataset_name}_group{i+1:02d}_temp.csv")
+
+        # === If temp exists, load it and skip computation ===
+        if os.path.exists(temp_path):
+            logging.info(f"[Rank {rank}] Skipping Group {i+1}/{n_groups} — checkpoint found: {temp_path}")
+            group_imputed = pd.read_csv(temp_path, index_col=0)
+            group_imputed = group_imputed.clip(lower=global_min, upper=global_max, axis=1)
+            imputed_df.loc[idx] = group_imputed
+            method_log.loc[idx] = method_name
+            previous_imputed = pd.concat([previous_imputed, group_imputed]) if previous_imputed is not None else group_imputed.copy()
+            continue
+
         if previous_imputed is None:
             combined = group_data
         else:
             combined = pd.concat([previous_imputed, group_data])
+
+        logging.info(
+            f"[{dataset_name}][Group {i+1}] "
+            f"({lower_bound:.2f}, {upper_bound:.2f}] -> {method_name} | "
+            f"{len(group_data)} group rows | {len(combined)} total used rows"
+        )
 
         try:
             if hasattr(imputer, "fit_transform"):
                 combined_imputed = imputer.fit_transform(combined)
                 combined_imputed = pd.DataFrame(combined_imputed, columns=combined.columns, index=combined.index)
             else:
-                # Try to call with random_state first
                 try:
                     combined_imputed = imputer(combined, random_state=random_state)
                 except TypeError:
                     combined_imputed = imputer(combined)
         except Exception as e:
-            logging.exception(f"[Rank {rank}] ❌ Error during method '{method_name}' in sequence #{plot_id} on group ({lower_bound:.2f}, {upper_bound:.2f}]: {e}")
-            continue  # Skip to next group
+            logging.exception(f"[Rank {rank}] Error during method '{method_name}' in sequence #{plot_id} on group ({lower_bound:.2f}, {upper_bound:.2f}]: {e}")
+            continue
 
         group_imputed = combined_imputed.loc[idx].clip(lower=global_min, upper=global_max, axis=1)
+        group_imputed.to_csv(temp_path)  # Save checkpoint
 
         imputed_df.loc[idx] = group_imputed
         method_log.loc[idx] = method_name
@@ -649,6 +681,49 @@ def hierarchical_impute_dynamic(
         method_names_actual.append(method_name)
 
         logging.info(f"[Rank {rank}] Finished group {i+1} / {n_groups} for sequence #{plot_id}")
+
+    if imputed_df.isnull().values.any():
+        raise ValueError("NaNs remain after hierarchical imputation!")
+
+    # === Plot cumulative bar ===
+    output_dir = "figures/CIR-16"
+    os.makedirs(output_dir, exist_ok=True)
+
+    unique_methods = list(set(method_names_actual))
+    palette = sns.color_palette("tab10", n_colors=len(unique_methods))
+    method_color_map = {method: palette[i] for i, method in enumerate(unique_methods)}
+    colors = [method_color_map[m] for m in method_names_actual]
+
+    plt.figure(figsize=(10, 10))
+    plt.barh(
+        y=range(1, len(cumulative_rows) + 1),
+        width=cumulative_rows,
+        color=colors,
+        edgecolor='black'
+    )
+    plt.yticks(ticks=range(1, len(group_names) + 1), labels=group_names)
+    plt.title(f"Cumulative Rows Used for Imputation by Group - {dataset_name}", fontsize=14, fontweight='bold')
+    plt.ylabel("Missingness Range", fontsize=12)
+    plt.xlabel("Cumulative Rows Used", fontsize=12)
+    plt.grid(True, axis='x', linestyle='--', alpha=0.6)
+
+    legend_handles = [Patch(color=color, label=method) for method, color in method_color_map.items()]
+    plt.legend(handles=legend_handles, title="Imputation Method", loc="lower right")
+    plt.tight_layout()
+
+    filename = f"seq_{plot_id:02d}_{dataset_name}_cumulative_imputation_rows.png" if dataset_name and plot_id is not None else f"{dataset_name}_cumulative_imputation_rows.png"
+    plt.savefig(os.path.join(output_dir, filename), dpi=300)
+    plt.close()
+
+    # === Cleanup group temp files ===
+    if dataset_name and plot_id is not None:
+        for i in range(n_groups):
+            temp_path = os.path.join(checkpoint_dir, f"{dataset_name}_group{i+1:02d}_temp.csv")
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    return (imputed_df, method_log) if return_method_log else imputed_df
+
 
     if imputed_df.isnull().values.any():
         raise ValueError("NaNs remain after hierarchical imputation!")
@@ -710,17 +785,17 @@ def get_imputer(method_name, registry):
 """----------------------------------------------------------------------------------------------------------------------"""
 
 
-# methods_all = ["mean", "median", "knn", "iterative_simple", "iterative_function", "xgboost", "gan", "lstm", "rnn"]
+methods_all = ["mean", "median", "knn", "iterative_simple", "iterative_function", "xgboost", "gan", "lstm", "rnn"]
 
-methods_all = ["mean", "median", "knn", "iterative_simple", "xgboost", "gan", "lstm", "rnn"]
+# methods_all = ["mean", "median", "knn", "iterative_function", "xgboost", "gan", "lstm", "rnn"]
 
 # Define all datasets
 datasets = [
-    "o4_X_train"
-    # "o1_X_train", "o1_X_validate", "o1_X_test", "o1_X_external",
-    # "o2_X_train", "o2_X_validate", "o2_X_test", "o2_X_external",
-    # "o3_X_train", "o3_X_validate", "o3_X_test", "o3_X_external",
-    # "o4_X_train", "o4_X_validate", "o4_X_test", "o4_X_external"
+    "o1_X_external", "o1_X_test"
+    #"o1_X_train", "o1_X_validate", "o1_X_test", "o1_X_external",
+    #"o2_X_train", "o2_X_validate", "o2_X_test", "o2_X_external",
+    #"o3_X_train", "o3_X_validate", "o3_X_test", "o3_X_external",
+    #"o4_X_train", "o4_X_validate", "o4_X_test", "o4_X_external"
 ]
 
 
@@ -733,22 +808,51 @@ datasets = [
 import itertools
 
 def build_sequences():
-    group_A = ["mean", "median", "knn"]
-    group_B = ["mean", "median", "knn"]
-    group_C = ["iterative_simple", "xgboost"]
-    group_D = ["iterative_simple", "xgboost"]
-    group_E = ["lstm", "rnn", "gan"]
-    group_F = ["lstm", "rnn", "gan"]
-    group_G = ["gan", "rnn"]
+    
+    #------------------------0%------------------------------
+    # Jerez et al., 2010; Batista & Monard, 2003; Che et al., 2018.
+    
+    group_A = ["knn"] #["knn", "median", "mean"] #5
+    group_B = ["knn"] #["knn", "median", "mean"] #5
+    group_C = ["knn"] #["knn", "median", "mean"] #5
+    group_D = ["iterative_function"] #["knn", "median", "mean"] #5
+    group_E = ["iterative_function"] #["knn", "median", "mean"] #5
+    group_F = ["iterative_function"] #["knn", "median", "mean"] #5
+    
+    #------------------------30%------------------------------
+    # Bertsimas et al., 2018 (data-driven MICE with tree-based models); Lin et al., 2020 (XGBoost outperforms for ICU datasets).
+    
+    group_G = ["iterative_function"] #["iterative_function", "xgboost"] #5
+    group_H = ["xgboost"] #["xgboost", "iterative_function"] #5
+    group_I = ["xgboost"] #["xgboost", "iterative_function"] #5
+    group_J = ["xgboost"] #["xgboost", "iterative_function"] #5
+    group_K = ["xgboost"] #["xgboost", "iterative_function"] #5
+    group_L = ["xgboost"] #["xgboost", "iterative_function"] #5
+    
+    #------------------------60%------------------------------
+    # Yoon et al., 2019 (BRITS), Cao et al., 2018 (GRU-D).
+    
+    group_M = ["lstm"] #["lstm", "rnn" ] #5
+    group_N = ["lstm"] #["lstm", "rnn"] #5
+    group_O = ["lstm"] #["lstm", "rnn"] #5
+    group_P = ["gan"] #["lstm", "rnn"] #5
+    
+    #------------------------80%------------------------------
+    # Yoon et al., 2018 (GAIN); Luo et al., 2020.
+    
+    group_Q = ["gan"] #["gan", "rnn"] #10
+    group_R = ["gan"] #["gan", "rnn"] #10
+    
+    #------------------------60%------------------------------
 
-    thresholds = [0.15, 0.15, 0.15, 0.15, 0.15, 0.15, 0.10]  # groups = 100%
+    thresholds = [0.05]*16 + [0.10]*2  # groups = 100%
     work_items = []
     index_records = []
 
     idx = 0
-    for a, b, c, d, e, f, g in itertools.product(group_A, group_B, group_C, group_D, group_E, group_F, group_G):
-        method_names = [a, b, c, d, e, f, g]
-        folder_name = f"seq_{idx:03d}_{a}_{b}_{c}_{d}_{e}_{f}_{g}"
+    for a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r in itertools.product(group_A, group_B, group_C, group_D, group_E, group_F, group_G, group_H, group_I, group_J, group_K, group_L, group_M, group_N, group_O, group_P, group_Q, group_R):
+        method_names = [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r]
+        folder_name = f"seq_{idx:03d}_{a}_{b}_{c}_{d}_{e}_{f}_{g}_{h}_{i}_{j}_{k}_{l}_{m}_{n}_{o}_{p}_{q}_{r}"
 
         for dataset in datasets:  # use datasets from global scope
             work_items.append((idx, folder_name, dataset, thresholds, method_names))
@@ -762,72 +866,6 @@ def build_sequences():
         idx += 1
 
     return work_items, index_records
-
-
-
-
-#################################################################
-
-# Custom sequence_description
-#def build_sequences():
-#    sequences = []
-#
-#    # Custom matrix from the image (11 sequences, each with 10 steps)
-#    matrix = [
-#        ["lstm"] * 10,
-#        ["lstm"] * 9 + ["gan"],
-#        ["lstm"] * 8 + ["gan"] * 2,
-#        ["lstm"] * 7 + ["gan"] * 3,
-#        ["lstm"] * 6 + ["gan"] * 4,
-#        ["lstm"] * 5 + ["gan"] * 5,
-#        ["lstm"] * 4 + ["gan"] * 6,
-#        ["lstm"] * 3 + ["gan"] * 7,
-#        ["lstm"] * 2 + ["gan"] * 8,
-#        ["lstm"] * 1 + ["gan"] * 9,
-#        #["gan"] * 10
-#    ]
-#
-#    # Add each row as a separate sequence
-#    sequences.extend(matrix)
-#
-#    return sequences
-
-###################################################################
-
-# My original sequence
-#def build_sequences():
-#    sequences = []
-#
-#    # Stage A: Run each method alone
-#    for method in methods_all:
-#        sequences.append([method] * 10)
-#
-#    # Stage B: Fix KNN for 1 part, cycle rest 9
-#    fixed_1 = ["knn"] * 1
-#    for method in methods_all:
-#        if method != "knn":
-#            sequences.append(fixed_1 + [method] * 9)
-#
-#    # Stage C onward: Incrementally grow the fixed prefix
-#    base = ["knn"] * 1 + ["iterative_simple"] * 2
-#    sequences.append(base + ["mean"] * 7)
-#    sequences.append(base + ["median"] * 7)
-#    sequences.append(base + ["xgboost"] * 7)
-#    sequences.append(base + ["gan"] * 7)
-#    sequences.append(base + ["lstm"] * 7)
-#    sequences.append(base + ["rnn"] * 7)
-#
-#    # Add LSTM to base
-#    base += ["lstm"] * 2
-#    sequences.append(base + ["mean"] * 5)
-#    sequences.append(base + ["gan"] * 5)
-#    sequences.append(base + ["rnn"] * 5)
-#
-#    # Add RNN to base
-#    base += ["rnn"] * 2
-#    sequences.append(base + ["gan"] * 3)
-#
-#    return sequences
 
 
 """
@@ -854,12 +892,6 @@ work_items, index_records = build_sequences()
 print(f"Total sequences generated: {len(work_items)}")
 
 
-#sequences = build_sequences()
-#print(f"Total sequences generated: {len(sequences)}")
-#sequences = [sequences[-1]]
-
-
-
 work_items = []
 index_records = []
 timing_records = {}
@@ -871,28 +903,15 @@ work_items, index_records = build_sequences()
 print(f"Total sequences generated: {len(work_items)}")
 
 
-
-
-# === Assign unique sequence IDs and build jobs ===
-#for idx, method_names in enumerate(sequences):
-#    thresholds = [0.10] * len(method_names)
-#    folder_name = f"seq_{idx:02d}"
-#    for dataset in datasets:
-#        work_items.append((idx, folder_name, dataset, thresholds, method_names))
-#    index_records.append({
-#        "sequence_id": folder_name,
-#        "methods": " | ".join(method_names),
-#        "num_methods": len(method_names)
-#    })
-
 # === Distribute work across ranks ===
 items_per_rank = split_evenly(work_items, size)
 local_work = items_per_rank[rank]
 print(f"[Rank {rank}] Received {len(local_work)} work items out of {len(work_items)} total.")
 
 # === Ensure base output path exists ===
-base_output_root = "CSV/exports/CIR-16/impute/threshold_10"
+base_output_root = "CSV/exports/CIR-16/impute/threshold"
 os.makedirs(base_output_root, exist_ok=True)
+
 
 
 # === Process local jobs ===
@@ -903,8 +922,15 @@ for idx, _, dataset_name, thresholds, method_names in local_work:
     subfolder_path = os.path.join(base_output_root, folder_name)
     os.makedirs(subfolder_path, exist_ok=True)
 
-    logging.info(f"[Rank {rank}] Processing sequence #{idx:02d} on {dataset_name} using: {' | '.join(method_names)}")
+    # === Check if this dataset has already been imputed (any rank) ===
+    imputed_path_pattern = os.path.join(subfolder_path, f"{dataset_name}_rank*.csv")
+    existing_files = glob.glob(imputed_path_pattern)
 
+    if existing_files:
+        logging.info(f"[Rank {rank}] Skipping sequence #{idx:02d} on {dataset_name} — found existing file(s): {[os.path.basename(f) for f in existing_files]}")
+        continue
+
+    logging.info(f"[Rank {rank}] Processing sequence #{idx:02d} on {dataset_name} using: {' | '.join(method_names)}")
 
     df = globals().get(dataset_name)
     if df is None or not isinstance(df, pd.DataFrame):
@@ -937,7 +963,7 @@ for idx, _, dataset_name, thresholds, method_names in local_work:
         logging.info(f"[Rank {rank}] Saved: {imputed_path}")
 
     except Exception as e:
-        logging.exception(f"[Rank {rank}] Exception during step #{idx} on {dataset_name}")
+        logging.exception(f"[Rank {rank}] ❌ Exception during step #{idx} on {dataset_name}")
 
 
 # === Rank 0 saves the index file and description log ===
@@ -964,4 +990,3 @@ if rank == 0:
 
 
 """----------------------------------------------------------------------------------------------------------------------"""
-
