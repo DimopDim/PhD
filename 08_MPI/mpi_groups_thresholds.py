@@ -26,8 +26,7 @@ Usage Context:
 This framework is used in medical AI research, especially for ICU time-series datasets (e.g., MIMIC-IV, 
 eICU), where missingness is not random and requires methodologically robust imputation strategies.
 
-Developed by: [Your Name / Team]
-Paper Ref: [If applicable]
+Developed by: [Dimopoulos Dimitrios]
 ======================================================================================================
 """
 
