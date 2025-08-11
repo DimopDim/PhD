@@ -1515,15 +1515,11 @@ def seed_prefix_checkpoints(dataset_name, thresholds, method_names, plot_id):
 
 methods_all = ["mean", "median", "knn", "iterative_simple", "iterative_function", "xgboost", "gan", "lstm", "rnn"]
 
-# methods_all = ["mean", "median", "knn", "iterative_function", "xgboost", "gan", "lstm", "rnn"]
-
 # Define all datasets
 datasets = [
-    "o1_X_test",
-    "o2_X_test",
-    "o3_X_test",
-    "o4_X_test"
-
+    "o1_X_test", "o2_X_test", "o3_X_test", "o4_X_test",
+    "o1_X_validate", "o2_X_validate", "o3_X_validate", "o4_X_validate"
+    
     #"o1_X_train", "o1_X_validate", "o1_X_test", "o1_X_external",
     #"o2_X_train", "o2_X_validate", "o2_X_test", "o2_X_external",
     #"o3_X_train", "o3_X_validate", "o3_X_test", "o3_X_external",
@@ -1536,38 +1532,35 @@ datasets = [
 """
 # Define the fixed sequence builder
 
-
-
-
 def build_sequences():
     
     #------------------------0%------------------------------
     # Jerez et al., 2010; Batista & Monard, 2003; Che et al., 2018.
     
-    group_A = ["median"] #["knn", "median", "mean"] #5 1
-    group_B = ["median"] #["knn", "median", "mean"] #5 2
-    group_C = ["median"] #["knn", "median", "mean"] #5 3
-    group_D = ["median"] #["knn", "median", "mean"] #5 4
-    group_E = ["median"] #["knn", "median", "mean"] #5 5
-    group_F = ["median"] #["knn", "median", "mean"] #5 6
+    group_A = ["knn", "median", "mean"] #5 1
+    group_B = ["knn", "median", "mean"] #5 2
+    group_C = ["knn", "median", "mean"] #5 3
+    group_D = ["knn", "median", "mean"] #5 4
+    group_E = ["knn", "median", "mean"] #5 5
+    group_F = ["knn", "median", "mean"] #5 6
     
     #------------------------30%------------------------------
     # Bertsimas et al., 2018 (data-driven MICE with tree-based models); Lin et al., 2020 (XGBoost outperforms for ICU datasets).
     
-    group_G = ["mean"] #["iterative_function", "xgboost"] #5 7
-    group_H = ["mean"] #["xgboost", "iterative_function"] #5 8
-    group_I = ["gan"] #["xgboost", "iterative_function"] #5 9
-    group_J = ["gan"] #["xgboost", "iterative_function"] #5 10
-    group_K = ["knn"] #["xgboost", "iterative_function"] #5 11
-    group_L = ["knn"] #["xgboost", "iterative_function"] #5 12
+    group_G = ["iterative_function", "xgboost"] #5 7
+    group_H = ["xgboost", "iterative_function"] #5 8
+    group_I = ["xgboost", "iterative_function"] #5 9
+    group_J = ["xgboost", "iterative_function"] #5 10
+    group_K = ["xgboost", "iterative_function"] #5 11
+    group_L = ["xgboost", "iterative_function"] #5 12
     
     #------------------------60%------------------------------
     # Yoon et al., 2019 (BRITS), Cao et al., 2018 (GRU-D).
     
-    group_M = ["median"] #["lstm", "rnn" ] #5 13
-    group_N = ["mean"] #["lstm", "rnn"] #5 14
-    group_O = ["knn"] #["lstm", "rnn"] #5 15
-    group_P = ["median"] #["lstm", "rnn"] #5 16
+    group_M = ["lstm", "rnn" ] #5 13
+    group_N = ["lstm", "rnn"] #5 14
+    group_O = ["lstm", "rnn"] #5 15
+    group_P = ["lstm", "rnn"] #5 16
     
     #------------------------80%------------------------------
     # Yoon et al., 2018 (GAIN); Luo et al., 2020.
@@ -1660,10 +1653,5 @@ if rank == 0:
 
 else:
     worker_loop(comm)
-
-
-
-
-
 
 """----------------------------------------------------------------------------------------------------------------------"""
