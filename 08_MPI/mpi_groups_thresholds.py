@@ -1517,8 +1517,8 @@ methods_all = ["mean", "median", "knn", "iterative_simple", "iterative_function"
 
 # Define all datasets
 datasets = [
-    "o1_X_test", "o2_X_test", "o3_X_test", "o4_X_test",
-    "o1_X_validate", "o2_X_validate", "o3_X_validate", "o4_X_validate"
+    "o1_X_external" #"o2_X_test", "o3_X_test", "o4_X_test",
+    #"o1_X_validate", "o2_X_validate", "o3_X_validate", "o4_X_validate"
     
     #"o1_X_train", "o1_X_validate", "o1_X_test", "o1_X_external",
     #"o2_X_train", "o2_X_validate", "o2_X_test", "o2_X_external",
@@ -1537,22 +1537,22 @@ def build_sequences():
     #------------------------0%------------------------------
     # Jerez et al., 2010; Batista & Monard, 2003; Che et al., 2018.
     
-    group_A = ["knn", "median", "mean"] #5 1
-    group_B = ["knn", "median", "mean"] #5 2
-    group_C = ["knn", "median", "mean"] #5 3
-    group_D = ["knn", "median", "mean"] #5 4
-    group_E = ["knn", "median", "mean"] #5 5
-    group_F = ["knn", "median", "mean"] #5 6
+    group_A = ["knn"] #["knn", "median", "mean"] #5 1
+    group_B = ["knn"] #["knn", "median", "mean"] #5 2
+    group_C = ["knn"] #["knn", "median", "mean"] #5 3
+    group_D = ["knn"] #["knn", "median", "mean"] #5 4
+    group_E = ["knn"] #["knn", "median", "mean"] #5 5
+    group_F = ["knn"] #["knn", "median", "mean"] #5 6
     
     #------------------------30%------------------------------
     # Bertsimas et al., 2018 (data-driven MICE with tree-based models); Lin et al., 2020 (XGBoost outperforms for ICU datasets).
     
-    group_G = ["iterative_function", "xgboost"] #5 7
-    group_H = ["xgboost", "iterative_function"] #5 8
-    group_I = ["xgboost", "iterative_function"] #5 9
-    group_J = ["xgboost", "iterative_function"] #5 10
-    group_K = ["xgboost", "iterative_function"] #5 11
-    group_L = ["xgboost", "iterative_function"] #5 12
+    group_G = ["iterative_function"] #["iterative_function", "xgboost"] #5 7
+    group_H = ["xgboost"] #["xgboost", "iterative_function"] #5 8
+    group_I = ["xgboost"] #["xgboost", "iterative_function"] #5 9
+    group_J = ["xgboost"] #["xgboost", "iterative_function"] #5 10
+    group_K = ["xgboost"] #["xgboost", "iterative_function"] #5 11
+    group_L = ["xgboost"] #["xgboost", "iterative_function"] #5 12
     
     #------------------------60%------------------------------
     # Yoon et al., 2019 (BRITS), Cao et al., 2018 (GRU-D).
