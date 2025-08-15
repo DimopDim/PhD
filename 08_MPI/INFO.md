@@ -1,5 +1,6 @@
-Pseudocode for the MPI‑Parallel Hierarchical Imputation Framework
-1) One‑time process setup
+**Pseudocode for the MPI‑Parallel Hierarchical Imputation Framework**
+
+**1) One‑time process setup**
 
 Set math/BLAS env vars to 1 thread so each MPI rank stays single‑threaded.
 
@@ -7,7 +8,7 @@ Import all libraries (MPI, pandas/numpy, sklearn/xgboost/tensorflow, plotting, l
 
 Try to set TensorFlow intra/inter‑op threads to 1 (ignore if it fails).
 
-2) MPI + logging bootstrap
+**2) MPI + logging bootstrap**
 
 Get comm = MPI.COMM_WORLD, rank, size.
 
@@ -25,7 +26,7 @@ Add a per‑rank file handler: logs/rank_<rank>.log.
 
 Define switch_log_file(path) that moves logging to a shared log file (append mode).
 
-3) Point the run at the main log + discover datasets (lazy)
+**3) Point the run at the main log + discover datasets**
 
 switch_log_file('logs/CIR-2.log') and log a banner.
 
@@ -49,7 +50,7 @@ read_csv and cast to float32.
 
 Return the DataFrame.
 
-4) Define individual imputers (functions or estimators)
+**4) Define individual imputers (functions or estimators)**
 
 xgboost_imputer(df): for each column with NaNs, fit XGB on other columns and predict missing values; n_jobs=1.
 
@@ -81,7 +82,9 @@ If it looks like an sklearn transformer: return a deepcopy.
 
 Else: error.
 
-5) (Defined but not used by the scheduler) Full hierarchical imputer
+
+
+**5) (Defined but not used by the scheduler) Full hierarchical imputer**
 
 hierarchical_impute_dynamic(df, thresholds, method_names, ...):
 
@@ -113,7 +116,9 @@ Return imputed DF (and method log if requested).
 
 (Note: your live scheduler below uses a lighter “one‑group‑at‑a‑time” variant instead.)
 
-6) Checkpointing, caching, and seeding helpers
+
+
+**6) Checkpointing, caching, and seeding helpers**
 
 Helper functions to:
 
@@ -131,13 +136,15 @@ Maintain a manifest (methods_manifest.json) storing methods/thresholds for chang
 
 Invalidate per‑sequence checkpoints from the first changed group onward.
 
-⚠️ There are two seed_prefix_checkpoints(...) definitions in the file:
+There are two seed_prefix_checkpoints(...) definitions in the file:
 
 An earlier one (respects manifest and “first unfinished group”) and a later simpler one.
 
 In Python, the later definition overrides the earlier. (See “Possible mistakes” below.)
 
-7) Worker execution (ranks > 0)
+
+
+**7) Worker execution (ranks > 0)**
 
 worker_loop(comm):
 
@@ -163,7 +170,9 @@ progressed=True if this call completed one group (or copied from shared cache).
 
 send (seq_idx, dataset, done, progressed) back with TAG_DONE.
 
-8) Do exactly one group of work (idempotent)
+
+
+**8) Do exactly one group of work (idempotent)**
 
 run_one_group(df, dataset_name, thresholds, method_names, ...):
 
@@ -209,7 +218,9 @@ Release the lock (and remove the one‑time “notice”).
 
 Return (False, True).
 
-9) Dispatcher (rank 0)
+
+
+**9) Dispatcher (rank 0)**
 
 Build queue = list of (seq_idx, dataset, thresholds, method_names) from work_items.
 
@@ -245,7 +256,9 @@ Send TAG_STOP to this worker.
 
 After loop: send TAG_STOP to all workers to be safe.
 
-10) Building sequences (parameter sweep)
+
+
+**10) Building sequences (parameter sweep)**
 
 Define method groups by missingness bands:
 
@@ -273,7 +286,9 @@ Record an index row (for audit/logs).
 
 Return work_items, index_records.
 
-11) Main program flow
+
+
+**11) Main program flow**
 
 Re‑obtain comm, rank, size (safe).
 
