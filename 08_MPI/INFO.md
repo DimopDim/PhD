@@ -1,5 +1,7 @@
 **Pseudocode for the MPI‑Parallel Hierarchical Imputation Framework**
 
+
+
 **1) One‑time process setup**
 
 Set math/BLAS env vars to 1 thread so each MPI rank stays single‑threaded.
@@ -7,6 +9,8 @@ Set math/BLAS env vars to 1 thread so each MPI rank stays single‑threaded.
 Import all libraries (MPI, pandas/numpy, sklearn/xgboost/tensorflow, plotting, logging, etc.).
 
 Try to set TensorFlow intra/inter‑op threads to 1 (ignore if it fails).
+
+
 
 **2) MPI + logging bootstrap**
 
@@ -25,6 +29,8 @@ Add a console handler with format [Rank %(mpi_rank)d] ... and hide very chatty I
 Add a per‑rank file handler: logs/rank_<rank>.log.
 
 Define switch_log_file(path) that moves logging to a shared log file (append mode).
+
+
 
 **3) Point the run at the main log + discover datasets**
 
@@ -49,6 +55,8 @@ Log via the quieter IO logger.
 read_csv and cast to float32.
 
 Return the DataFrame.
+
+
 
 **4) Define individual imputers (functions or estimators)**
 
