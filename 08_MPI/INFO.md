@@ -8,7 +8,7 @@ It was developed for large ICU datasets (e.g., **MIMIC-IV**, **eICU**) where mis
 ## Key Features
 
 - **MPI parallelization** using [`mpi4py`](https://mpi4py.readthedocs.io/)  
-  Distributes imputation jobs across multiple CPU cores/nodes (tested up to 64 cores).
+  Distributes imputation jobs across multiple CPU cores/nodes.
 - **Dynamic hierarchical grouping**  
   Rows are grouped by percentage of missing values (e.g., 0–5%, 5–10%, …, 90–100%).
 - **Multiple imputation methods supported**:
