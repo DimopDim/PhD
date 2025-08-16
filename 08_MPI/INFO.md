@@ -29,9 +29,7 @@ It was developed for large ICU datasets (e.g., **MIMIC-IV**, **eICU**) where mis
 ---
 
 
-- **Run with MPI:**
-
-mpirun -np 8 python mpi_groups_thresholds.py
+- **Run with MPI:** mpirun -np 8 python mpi_groups_thresholds.py
 
 
 ---
