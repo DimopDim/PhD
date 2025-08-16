@@ -26,7 +26,9 @@ Usage Context:
 This framework is used in medical AI research, especially for ICU time-series datasets (e.g., MIMIC-IV, 
 eICU), where missingness is not random and requires methodologically robust imputation strategies.
 
-Developed by: [Dimopoulos Dimitrios]
+Developed by Dimitrios Dimopoulos
+PhD Candidate — University of the Aegean
+Research Focus: AI in Medical Data, Missing Value Imputation, Predictive Modeling
 ======================================================================================================
 """
 
@@ -54,6 +56,9 @@ import errno
 import gc
 import contextlib
 import re
+import hashlib
+import json
+
 
 
 # ---- Third-party ----
@@ -115,6 +120,40 @@ def file_lock(path):
             except Exception:
                 pass
 
+
+
+# === Shared-prefix cache helpers ============================================
+def _prefix_hash(parts):
+    """Stable short key for a prefix signature."""
+    s = "|".join(parts)
+    return hashlib.md5(s.encode("utf-8")).hexdigest()[:16]
+
+def _shared_prefix_dir(dataset_name, gidx, method_names, thresholds, columns):
+    """
+    Directory to store/load the cumulative 'previous_imputed' snapshot
+    up to and including group index gidx (0-based).
+    Cache key = dataset + thresholds + methods[:gidx+1] + column schema.
+    """
+    prefix_methods = method_names[:gidx+1]
+    key_parts = [
+        str(dataset_name or ""),
+        json.dumps(thresholds, sort_keys=True),
+        json.dumps(prefix_methods, sort_keys=True),
+        json.dumps(sorted(list(columns)), sort_keys=True),
+    ]
+    h = _prefix_hash(key_parts)
+    return os.path.join(
+        "CSV/exports/CIR-16/impute/shared_prefix_cache",
+        f"g{gidx+1:02d}",
+        str(dataset_name or "unknown"),
+        h
+    )
+
+def _shared_prefix_csv_path(shared_dir):
+    """Canonical CSV path inside a shared-prefix cache directory."""
+    os.makedirs(shared_dir, exist_ok=True)
+    return os.path.join(shared_dir, "imputed.csv")
+# ============================================================================
 
 
 
@@ -222,6 +261,7 @@ if rank == 0:
     }
     logging.info("+++++++++++++++++CIR-2+++++++++++++++++++++++++")
     logging.info(f"[Start] Rank 0 built dataset map with {len(dataset_map)} entries.")
+
 else:
     dataset_map = None
 
@@ -716,6 +756,7 @@ def hierarchical_impute_dynamic(
     df_copy = df.copy()
     df_copy["missing_pct"] = df_copy.isnull().mean(axis=1)
     cols = df_copy.columns.drop("missing_pct")
+    col_list = list(cols)
 
     global_means = df_copy[cols].mean().fillna(0)
     global_min = df_copy[cols].min()
@@ -728,51 +769,147 @@ def hierarchical_impute_dynamic(
     if not np.isclose(cum_thresholds[-1], 1.0):
         raise ValueError("Thresholds must sum to 1.0")
 
-    previous_imputed = None
     n_groups = len(cum_thresholds)
 
+    # ------------------------------------------------------------
+    # Warm-start: try to load the longest cached shared prefix
+    # ------------------------------------------------------------
+    start_group = 0            # group index to start computing (0-based)
+    previous_imputed = None    # cumulative df of all rows imputed so far
+
+    try:
+        for gidx in range(n_groups - 1, -1, -1):
+            shared_dir = _shared_prefix_dir(
+                dataset_name=dataset_name,
+                gidx=gidx,
+                method_names=method_names,
+                thresholds=thresholds,
+                columns=col_list
+            )
+            cached_path = _shared_prefix_csv_path(shared_dir)
+            if os.path.exists(cached_path):
+                warm = pd.read_csv(cached_path, index_col=0)
+                # Ensure same columns / order
+                if list(warm.columns) == col_list:
+                    previous_imputed = warm
+                    start_group = gidx + 1  # next group to compute
+                    logging.info(f"[Rank {rank}] Warm-start {dataset_name}: using prefix through group {gidx+1:02d} -> {cached_path}")
+
+                    # Pre-fill imputed_df & method_log for the cached part,
+                    # so the final output is complete without recomputation.
+                    for i_prefill in range(start_group):
+                        upper_bound = cum_thresholds[i_prefill]
+                        lower_bound = cum_thresholds[i_prefill - 1] if i_prefill > 0 else 0.0
+                        idx_prefill = df_copy.index[
+                            (df_copy["missing_pct"] > lower_bound) & (df_copy["missing_pct"] <= upper_bound)
+                        ]
+                        if len(idx_prefill) == 0:
+                            continue
+                        # Fill from cached cumulative
+                        imputed_df.loc[idx_prefill] = previous_imputed.loc[idx_prefill, col_list]
+                        method_log.loc[idx_prefill] = method_names[i_prefill]
+                    break
+                else:
+                    logging.info(f"[Rank {rank}] Ignored cache (column mismatch): {cached_path}")
+    except Exception as _e:
+        logging.info(f"[Rank {rank}] Warm-start probing failed: {_e}")
+
+    # ------------------------------------------------------------
+    # Plot bookkeeping
+    # ------------------------------------------------------------
     group_names = []
     cumulative_rows = []
     method_names_actual = []
     cumulative_total = 0
 
-    for i, upper_bound in enumerate(cum_thresholds):
+    # Per-sequence checkpoint directory (your existing per-group temps)
+    checkpoint_dir = os.path.join(
+        "CSV/exports/CIR-16/impute/threshold",
+        f"seq_{plot_id:02d}_{'_'.join(method_names)}"
+    )
+    os.makedirs(checkpoint_dir, exist_ok=True)
+
+    # If we warmed up, also advance plot bookkeeping for already-cached groups
+    for i_prefill in range(start_group):
+        upper_bound = cum_thresholds[i_prefill]
+        lower_bound = cum_thresholds[i_prefill - 1] if i_prefill > 0 else 0.0
+        idx_prefill = df_copy.index[
+            (df_copy["missing_pct"] > lower_bound) & (df_copy["missing_pct"] <= upper_bound)
+        ]
+        if len(idx_prefill) == 0:
+            continue
+        group_label = f"{int(lower_bound * 100)}%–{int(upper_bound * 100)}%"
+        group_names.append(group_label)
+        cumulative_total += len(idx_prefill)
+        cumulative_rows.append(cumulative_total)
+        method_names_actual.append(method_names[i_prefill])
+
+    # ------------------------------------------------------------
+    # Main loop — start from start_group (skip cached prefix)
+    # ------------------------------------------------------------
+    for i in range(start_group, n_groups):
+        upper_bound = cum_thresholds[i]
         lower_bound = cum_thresholds[i - 1] if i > 0 else 0.0
+
         idx = df_copy.index[
             (df_copy["missing_pct"] > lower_bound) & (df_copy["missing_pct"] <= upper_bound)
         ]
         group_data = df_copy.loc[idx, cols].copy()
 
+        # Stabilize all-NaN columns within this group
         for col in group_data.columns:
             if group_data[col].isnull().all():
                 group_data[col] = global_means[col]
 
         if group_data.empty:
+            # Still update plot bookkeeping for consistency
+            group_label = f"{int(lower_bound * 100)}%–{int(upper_bound * 100)}%"
+            group_names.append(group_label)
+            cumulative_rows.append(cumulative_total)
+            method_names_actual.append(method_names[i])
             continue
 
         method_name = method_names[i]
         imputer = get_imputer(method_name, method_registry)
 
-        # === Checkpoint path ===
-        checkpoint_dir = os.path.join("CSV/exports/CIR-16/impute/threshold", 
-                                      f"seq_{plot_id:02d}_{'_'.join(method_names)}")
-        os.makedirs(checkpoint_dir, exist_ok=True)
+        # Per-group checkpoint (sequence-local)
         temp_path = os.path.join(checkpoint_dir, f"{dataset_name}_group{i+1:02d}_temp.csv")
-
-        # === If temp exists, load it and skip computation ===
         if os.path.exists(temp_path):
             logging.info(f"[Rank {rank}] Skipping Group {i+1}/{n_groups} — checkpoint found: {temp_path}")
             group_imputed = pd.read_csv(temp_path, index_col=0)
             group_imputed = group_imputed.clip(lower=global_min, upper=global_max, axis=1)
             imputed_df.loc[idx] = group_imputed
             method_log.loc[idx] = method_name
-            previous_imputed = pd.concat([previous_imputed, group_imputed]) if previous_imputed is not None else group_imputed.copy()
+
+            previous_imputed = (
+                pd.concat([previous_imputed, group_imputed]).sort_index()
+                if previous_imputed is not None else group_imputed.copy()
+            )
+            # Plot bookkeeping
+            group_label = f"{int(lower_bound * 100)}%–{int(upper_bound * 100)}%"
+            group_names.append(group_label)
+            cumulative_total += len(group_data)
+            cumulative_rows.append(cumulative_total)
+            method_names_actual.append(method_name)
+
+            # Persist updated shared-prefix cache (now includes this group)
+            try:
+                shared_dir = _shared_prefix_dir(dataset_name, i, method_names, thresholds, col_list)
+                shared_csv = _shared_prefix_csv_path(shared_dir)
+                lock_path = os.path.join(shared_dir, "cache.lock")
+                with file_lock(lock_path) as got:
+                    if got:
+                        tmp_out = shared_csv + ".part"
+                        previous_imputed.to_csv(tmp_out)  # keep index to preserve original row ids
+                        os.replace(tmp_out, shared_csv)
+                        logging.info(f"[Rank {rank}] Updated shared prefix cache: {shared_csv}")
+            except Exception as _e:
+                logging.info(f"[Rank {rank}] Could not update shared prefix cache for g{i+1}: {_e}")
+
             continue
 
-        if previous_imputed is None:
-            combined = group_data
-        else:
-            combined = pd.concat([previous_imputed, group_data])
+        # Build combined rows to fit stats/models
+        combined = group_data if previous_imputed is None else pd.concat([previous_imputed, group_data])
 
         logging.info(
             f"[{dataset_name}][Group {i+1}] "
@@ -780,27 +917,72 @@ def hierarchical_impute_dynamic(
             f"{len(group_data)} group rows | {len(combined)} total used rows"
         )
 
+        # Impute
         try:
-            if hasattr(imputer, "fit_transform"):
-                combined_imputed = imputer.fit_transform(combined)
-                combined_imputed = pd.DataFrame(combined_imputed, columns=combined.columns, index=combined.index)
+            # If it is an sklearn-like imputer with fit/transform, do:
+            #   1) fit on 'combined' (A..current)
+            #   2) transform only 'group_data' (current group)
+            if hasattr(imputer, "fit") and hasattr(imputer, "transform"):
+                # Fit on all available rows so far
+                imputer.fit(combined)
+                # Transform only the target group rows
+                group_imputed_arr = imputer.transform(group_data)
+                group_imputed = pd.DataFrame(
+                    group_imputed_arr, columns=combined.columns, index=group_data.index
+                )[group_data.columns]  # enforce column order
+
+            # Otherwise, fall back to function-style imputers that return a full DF
             else:
                 try:
                     combined_imputed = imputer(combined, random_state=random_state)
                 except TypeError:
                     combined_imputed = imputer(combined)
+                group_imputed = combined_imputed.loc[idx]
+
         except Exception as e:
-            logging.exception(f"[Rank {rank}] Error during method '{method_name}' in sequence #{plot_id} on group ({lower_bound:.2f}, {upper_bound:.2f}]: {e}")
+            logging.exception(
+                f"[Rank {rank}] Error during method '{method_name}' in sequence #{plot_id} "
+                f"on group ({lower_bound:.2f}, {upper_bound:.2f}]: {e}"
+            )
             continue
 
-        group_imputed = combined_imputed.loc[idx].clip(lower=global_min, upper=global_max, axis=1)
-        group_imputed.to_csv(temp_path)  # Save checkpoint
 
+        # Clip to global min/max
+        group_imputed = group_imputed.clip(lower=global_min, upper=global_max, axis=1)
+
+        # Save per-sequence group checkpoint
+        try:
+            group_imputed.to_csv(temp_path)  # keep index so we can re-align on load
+        except Exception as _e:
+            logging.info(f"[Rank {rank}] Could not write checkpoint {temp_path}: {_e}")
+
+        # Write into final frame + log
         imputed_df.loc[idx] = group_imputed
         method_log.loc[idx] = method_name
 
-        previous_imputed = pd.concat([previous_imputed, group_imputed]) if previous_imputed is not None else group_imputed.copy()
+        # Update cumulative
+        previous_imputed = (
+            pd.concat([previous_imputed, group_imputed]).sort_index()
+            if previous_imputed is not None else group_imputed.copy()
+        )
 
+        # Persist/refresh shared-prefix cache (cumulative up to and including group i)
+        try:
+            shared_dir = _shared_prefix_dir(dataset_name, i, method_names, thresholds, col_list)
+            shared_csv = _shared_prefix_csv_path(shared_dir)
+            lock_path = os.path.join(shared_dir, "cache.lock")
+            with file_lock(lock_path) as got:
+                if got:
+                    tmp_out = shared_csv + ".part"
+                    previous_imputed.to_csv(tmp_out)  # keep index
+                    os.replace(tmp_out, shared_csv)
+                    logging.info(f"[Rank {rank}] Updated shared prefix cache: {shared_csv}")
+                else:
+                    logging.info(f"[Rank {rank}] Shared prefix cache busy; skipped write for g{i+1}")
+        except Exception as _e:
+            logging.info(f"[Rank {rank}] Could not update shared prefix cache for g{i+1}: {_e}")
+
+        # Plot bookkeeping
         group_label = f"{int(lower_bound * 100)}%–{int(upper_bound * 100)}%"
         group_names.append(group_label)
         cumulative_total += len(group_data)
@@ -809,6 +991,7 @@ def hierarchical_impute_dynamic(
 
         logging.info(f"[Rank {rank}] Finished group {i+1} / {n_groups} for sequence #{plot_id}")
 
+    # Final sanity
     if imputed_df.isnull().values.any():
         raise ValueError("NaNs remain after hierarchical imputation!")
 
@@ -816,7 +999,7 @@ def hierarchical_impute_dynamic(
     output_dir = "figures/CIR-16"
     os.makedirs(output_dir, exist_ok=True)
 
-    unique_methods = list(set(method_names_actual))
+    unique_methods = list(set(method_names_actual)) or ["(none)"]
     palette = sns.color_palette("tab10", n_colors=len(unique_methods))
     method_color_map = {method: palette[i] for i, method in enumerate(unique_methods)}
     colors = [method_color_map[m] for m in method_names_actual]
@@ -835,27 +1018,26 @@ def hierarchical_impute_dynamic(
     plt.grid(True, axis='x', linestyle='--', alpha=0.6)
 
     legend_handles = [Patch(color=color, label=method) for method, color in method_color_map.items()]
-    plt.legend(handles=legend_handles, title="Imputation Method", loc="lower right")
+    if legend_handles:
+        plt.legend(handles=legend_handles, title="Imputation Method", loc="lower right")
     plt.tight_layout()
 
     filename = f"seq_{plot_id:02d}_{dataset_name}_cumulative_imputation_rows.png" if dataset_name and plot_id is not None else f"{dataset_name}_cumulative_imputation_rows.png"
     plt.savefig(os.path.join(output_dir, filename), dpi=300)
     plt.close()
-
+    
+    #---------------------------------|
+    # Temporarily disabled.           |
+    # Keep checkpoints for inspection |
+    #---------------------------------|
     # === Cleanup group temp files ===
-    if dataset_name and plot_id is not None:
-        for i in range(n_groups):
-            temp_path = os.path.join(checkpoint_dir, f"{dataset_name}_group{i+1:02d}_temp.csv")
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-
+    #if dataset_name and plot_id is not None:
+    #    for i in range(n_groups):
+    #        temp_path = os.path.join(checkpoint_dir, f"{dataset_name}_group{i+1:02d}_temp.csv")
+    #        if os.path.exists(temp_path):
+    #            os.remove(temp_path)
+    
     return (imputed_df, method_log) if return_method_log else imputed_df
-
-
-
-
-
-
 
 """
 ----------------------------------------------------------
@@ -890,7 +1072,7 @@ methods_all = ["mean", "median", "knn", "iterative_simple", "iterative_function"
 
 # Define all datasets
 datasets = [
-    "o1_X_test", "o1_X_validate"
+    "o1_X_test", "o1_X_validate", "o1_X_train"
     #"o1_X_train", "o1_X_validate", "o1_X_test", "o1_X_external",
     #"o2_X_train", "o2_X_validate", "o2_X_test", "o2_X_external",
     #"o3_X_train", "o3_X_validate", "o3_X_test", "o3_X_external",
@@ -914,7 +1096,7 @@ def build_sequences():
     group_A =  ["knn"] #["knn"] #["knn", "median", "mean"] #5 #1
     group_B =  ["knn"] #["knn"] #["knn", "median", "mean"] #5 #2
     group_C =  ["knn"] #["knn"] #["knn", "median", "mean"] #5 #3
-    group_D =  ["knn"] #["iterative_function"] #["knn", "median", "mean"] #5 #4
+    group_D =  ["mean"] #["iterative_function"] #["knn", "median", "mean"] #5 #4
     group_E =  ["mean"] #["iterative_function"] #["knn", "median", "mean"] #5 #5
     group_F =  ["mean"] #["iterative_function"] #["knn", "median", "mean"] #5 #6
     
@@ -939,8 +1121,8 @@ def build_sequences():
     #------------------------80%------------------------------
     # Yoon et al., 2018 (GAIN); Luo et al., 2020.
     
-    group_Q = ["gan"] #["gan", "rnn"] #10 #17
-    group_R = ["gan"] #["gan", "rnn"] #10 #18
+    group_Q = ["mean"] #["gan", "rnn"] #10 #17
+    group_R = ["median"] #["gan", "rnn"] #10 #18
     
     #------------------------60%------------------------------
 
@@ -978,18 +1160,6 @@ def split_evenly(lst, n):
     return [lst[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)]
 
 # --- Build sequences and combinations ---
-import time
-from mpi4py import MPI
-
-comm = MPI.COMM_WORLD
-rank = comm.Get_rank()
-size = comm.Get_size()
-
-
-
-work_items, index_records = build_sequences()
-print(f"Total sequences generated: {len(work_items)}")
-
 
 work_items = []
 index_records = []
@@ -1016,16 +1186,6 @@ os.makedirs(base_output_root, exist_ok=True)
 """
 ----------------------------------------------------------
 """
-
-
-
-
-
-
-
-
-
-
 
 """On-demand loading + timing gather"""
 
@@ -1087,24 +1247,6 @@ def _job_already_done(dataset_name: str, method_names: list, idx: int) -> bool:
     imputed_path_pattern = os.path.join(subfolder_path, f"{dataset_name}_rank*.csv")
     existing_files = glob.glob(imputed_path_pattern)
     return len(existing_files) > 0
-
-
-
-# ------------------------------
-
-# Replaced from acquire_job_lock
-#def _claim_job(idx: int, dataset_name: str, method_names: list) -> bool:
-#    """
-#    Returns True if this rank successfully claims the job; False if someone else already did.
-#    """
-#    method_sequence_str = "_".join(method_names)
-#    folder_name = f"seq_{idx:02d}_{method_sequence_str}"
-#    subfolder_path = os.path.join(base_output_root, folder_name)
-#    os.makedirs(subfolder_path, exist_ok=True)
-#
-#    lock_path = os.path.join(subfolder_path, f"{dataset_name}.lock")
-#    with file_lock(lock_path) as acquired:
-#        return acquired
 
 
 # ------------------------------
@@ -1329,29 +1471,6 @@ comm.Barrier()
 
 
 # ------------------------------
-# === Rank 0 saves the index file and description log ===
-# ------------------------------
-
-
-#if rank == 0:
-#    index_df = pd.DataFrame(index_records)
-#    index_df_path = os.path.join(base_output_root, "imputation_sequence_index.csv")
-#    index_df.to_csv(index_df_path, index=False)
-#    logging.info(f"[Rank 0] Saved index file: {index_df_path}")
-#
-#    # Save human-readable sequence description log
-#    text_log_path = os.path.join(base_output_root, "sequence_description.txt")
-#    with open(text_log_path, "w", encoding="utf-8") as f:
-#        for idx2, record in enumerate(index_records):
-#            f.write(f"{record['sequence_id']}: {record['methods']}\n")
-#            for dataset in datasets:
-#                dur = all_timing_records.get((idx2, dataset)) if all_timing_records else None
-#                if dur is not None:
-#                    f.write(f"    {dataset}: {dur:.2f} sec\n")
-#    logging.info(f"[Rank 0] Saved sequence description log to {text_log_path}")
-
-
-# ------------------------------
 
 
 def _finalize_outputs(base_dir: str, datasets_local: list, work_items_local: list):
@@ -1456,10 +1575,6 @@ if rank == 0:
                 if dur is not None:
                     f.write(f"    {ds}: {dur:.2f} sec\n")
     logging.info(f"[Rank 0] Saved sequence description log to {text_log_path}")
-
-
-
-
 
 """
 ----------------------------------------------------------
