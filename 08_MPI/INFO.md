@@ -27,3 +27,7 @@ It was developed for large ICU datasets (e.g., **MIMIC-IV**, **eICU**) where mis
   - QA reports on final outputs (NaN counts, dataset shape, source file)
 
 ---
+
+
+- **Run with MPI:**
+mpirun -np 8 python mpi_groups_thresholds.py
