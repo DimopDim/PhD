@@ -890,7 +890,7 @@ methods_all = ["mean", "median", "knn", "iterative_simple", "iterative_function"
 
 # Define all datasets
 datasets = [
-    "o1_X_test", "o1_X_validate", "o1_X_train"
+    "o1_X_test", "o1_X_validate"
     #"o1_X_train", "o1_X_validate", "o1_X_test", "o1_X_external",
     #"o2_X_train", "o2_X_validate", "o2_X_test", "o2_X_external",
     #"o3_X_train", "o3_X_validate", "o3_X_test", "o3_X_external",
@@ -915,8 +915,8 @@ def build_sequences():
     group_B =  ["knn"] #["knn"] #["knn", "median", "mean"] #5 #2
     group_C =  ["knn"] #["knn"] #["knn", "median", "mean"] #5 #3
     group_D =  ["knn"] #["iterative_function"] #["knn", "median", "mean"] #5 #4
-    group_E =  ["knn"] #["iterative_function"] #["knn", "median", "mean"] #5 #5
-    group_F =  ["knn"] #["iterative_function"] #["knn", "median", "mean"] #5 #6
+    group_E =  ["mean"] #["iterative_function"] #["knn", "median", "mean"] #5 #5
+    group_F =  ["mean"] #["iterative_function"] #["knn", "median", "mean"] #5 #6
     
     #------------------------30%------------------------------
     # Bertsimas et al., 2018 (data-driven MICE with tree-based models); Lin et al., 2020 (XGBoost outperforms for ICU datasets).
@@ -1073,22 +1073,48 @@ def _load_dataset_by_name(name: str) -> pd.DataFrame:
 
 
 def _job_already_done(dataset_name: str, method_names: list, idx: int) -> bool:
-    """Check if any rank already produced output for (sequence idx, dataset)."""
     method_sequence_str = "_".join(method_names)
     folder_name = f"seq_{idx:02d}_{method_sequence_str}"
     subfolder_path = os.path.join(base_output_root, folder_name)
     os.makedirs(subfolder_path, exist_ok=True)
+
+    # If canonical file exists, we’re done.
+    canonical = os.path.join(subfolder_path, f"{dataset_name}.csv")
+    if os.path.exists(canonical):
+        return True
+
+    # Or if any rank-specific output exists.
     imputed_path_pattern = os.path.join(subfolder_path, f"{dataset_name}_rank*.csv")
     existing_files = glob.glob(imputed_path_pattern)
     return len(existing_files) > 0
 
 
+
 # ------------------------------
 
+# Replaced from acquire_job_lock
+#def _claim_job(idx: int, dataset_name: str, method_names: list) -> bool:
+#    """
+#    Returns True if this rank successfully claims the job; False if someone else already did.
+#    """
+#    method_sequence_str = "_".join(method_names)
+#    folder_name = f"seq_{idx:02d}_{method_sequence_str}"
+#    subfolder_path = os.path.join(base_output_root, folder_name)
+#    os.makedirs(subfolder_path, exist_ok=True)
+#
+#    lock_path = os.path.join(subfolder_path, f"{dataset_name}.lock")
+#    with file_lock(lock_path) as acquired:
+#        return acquired
 
-def _claim_job(idx: int, dataset_name: str, method_names: list) -> bool:
+
+# ------------------------------
+
+def acquire_job_lock(idx: int, dataset_name: str, method_names: list):
     """
-    Returns True if this rank successfully claims the job; False if someone else already did.
+    Returns a context manager. Use:
+        with acquire_job_lock(...) as got:
+            if not got: ...skip...
+            # do ALL the work while holding the lock
     """
     method_sequence_str = "_".join(method_names)
     folder_name = f"seq_{idx:02d}_{method_sequence_str}"
@@ -1096,8 +1122,8 @@ def _claim_job(idx: int, dataset_name: str, method_names: list) -> bool:
     os.makedirs(subfolder_path, exist_ok=True)
 
     lock_path = os.path.join(subfolder_path, f"{dataset_name}.lock")
-    with file_lock(lock_path) as acquired:
-        return acquired
+    return file_lock(lock_path)
+
 
 
 # ------------------------------
@@ -1109,65 +1135,68 @@ def _do_one_job_locally(job):
     thresholds = job["thresholds"]
     method_names = job["method_names"]
 
-    if _job_already_done(dataset_name, method_names, idx):
-        logging.info(f"[Rank {rank}] Skipping sequence #{idx:02d} on {dataset_name} — existing outputs found.")
-        return {"idx": idx, "dataset": dataset_name, "duration": 0.0, "skipped": True}
-
-    # NEW: claim the job atomically
-    if not _claim_job(idx, dataset_name, method_names):
-        logging.info(f"[Rank {rank}] Another rank claimed #{idx:02d} / {dataset_name}. Skipping.")
-        return {"idx": idx, "dataset": dataset_name, "duration": 0.0, "skipped": True}
-
     method_sequence_str = "_".join(method_names)
     folder_name = f"seq_{idx:02d}_{method_sequence_str}"
     subfolder_path = os.path.join(base_output_root, folder_name)
     os.makedirs(subfolder_path, exist_ok=True)
 
-    logging.info(f"[Rank {rank}] Processing sequence #{idx:02d} on {dataset_name} using: {' | '.join(method_names)}")
+    # Acquire the job lock for the whole duration of the job
+    with acquire_job_lock(idx, dataset_name, method_names) as got_lock:
+        if not got_lock:
+            logging.info(f"[Rank {rank}] Another rank holds lock for #{idx:02d} / {dataset_name}. Skipping.")
+            return {"idx": idx, "dataset": dataset_name, "duration": 0.0, "skipped": True}
 
-    df = _load_dataset_by_name(dataset_name)
-    if df is None or not isinstance(df, pd.DataFrame):
-        msg = f"[Rank {rank}] Skipping {dataset_name} (not found or not a DataFrame)"
-        logging.info(msg)
-        return {"idx": idx, "dataset": dataset_name, "duration": 0.0, "error": msg}
+        # Double-check after acquiring the lock (prevents race with just-finished job)
+        if _job_already_done(dataset_name, method_names, idx):
+            logging.info(f"[Rank {rank}] Skipping sequence #{idx:02d} on {dataset_name} — outputs already exist.")
+            return {"idx": idx, "dataset": dataset_name, "duration": 0.0, "skipped": True}
 
-    try:
-        start_time = time.time()
+        logging.info(f"[Rank {rank}] Processing sequence #{idx:02d} on {dataset_name} using: {' | '.join(method_names)}")
 
-        imputed_df, method_log = hierarchical_impute_dynamic(
-            df=df,
-            thresholds=thresholds,
-            method_names=method_names,
-            method_registry=imputer_registry,
-            random_state=0,
-            return_method_log=True,
-            dataset_name=dataset_name,
-            plot_id=idx
-        )
+        df = _load_dataset_by_name(dataset_name)
+        if df is None or not isinstance(df, pd.DataFrame):
+            msg = f"[Rank {rank}] Skipping {dataset_name} (not found or not a DataFrame)"
+            logging.info(msg)
+            return {"idx": idx, "dataset": dataset_name, "duration": 0.0, "error": msg}
 
-        duration = time.time() - start_time
-
-        imputed_path = os.path.join(subfolder_path, f"{dataset_name}_rank{rank}.csv")
-        method_log_path = os.path.join(subfolder_path, f"{dataset_name}_method_log_rank{rank}.csv")
-
-        imputed_df.to_csv(imputed_path, index=False)
-        method_log.to_csv(method_log_path, index=False)
-
-        logging.info(f"[Rank {rank}] Saved: {imputed_path}")
-
-        # free memory between big jobs
-        del imputed_df, method_log
-        gc.collect()
         try:
-            tf.keras.backend.clear_session()
-        except Exception:
-            pass
+            start_time = time.time()
 
-        return {"idx": idx, "dataset": dataset_name, "duration": duration}
+            imputed_df, method_log = hierarchical_impute_dynamic(
+                df=df,
+                thresholds=thresholds,
+                method_names=method_names,
+                method_registry=imputer_registry,
+                random_state=0,
+                return_method_log=True,
+                dataset_name=dataset_name,
+                plot_id=idx
+            )
 
-    except Exception as e:
-        logging.exception(f"[Rank {rank}] ❌ Exception during step #{idx} on {dataset_name}")
-        return {"idx": idx, "dataset": dataset_name, "duration": 0.0, "error": str(e)}
+            duration = time.time() - start_time
+
+            imputed_path = os.path.join(subfolder_path, f"{dataset_name}_rank{rank}.csv")
+            method_log_path = os.path.join(subfolder_path, f"{dataset_name}_method_log_rank{rank}.csv")
+
+            imputed_df.to_csv(imputed_path, index=False)
+            method_log.to_csv(method_log_path, index=False)
+
+            logging.info(f"[Rank {rank}] Saved: {imputed_path}")
+
+            # free memory between big jobs
+            del imputed_df, method_log
+            gc.collect()
+            try:
+                tf.keras.backend.clear_session()
+            except Exception:
+                pass
+
+            return {"idx": idx, "dataset": dataset_name, "duration": duration}
+
+        except Exception as e:
+            logging.exception(f"[Rank {rank}] ❌ Exception during step #{idx} on {dataset_name}")
+            return {"idx": idx, "dataset": dataset_name, "duration": 0.0, "error": str(e)}
+
 
 
 # ------------------------------
