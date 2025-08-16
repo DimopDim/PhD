@@ -9,7 +9,7 @@ per row, applying increasingly sophisticated methods as missingness increases.
 
 Key Features:
 ------------------------------------------------------------------------------------------------------
- - Utilizes MPI (via mpi4py) to parallelize imputation across multiple CPU cores/nodes.
+ - Utilizes MPI (via `mpi4py`) to parallelize imputation across multiple CPU cores/nodes.
  - Groups rows into imputation buckets based on % of missing values (e.g., 0–5%, 5–10%, ..., 90–100%).
  - Applies different imputation techniques per group:
  -   - Simple (mean, median, KNN)
@@ -19,7 +19,7 @@ Key Features:
  - Caches intermediate results to avoid recomputation.
  - Logs detailed progress, runtime, and method usage per row.
  - Generates diagnostic plots showing cumulative rows imputed per method and group.
- - Saves results and logs per MPI rank in organized folders (CSV/exports/CIR-16/impute/...).
+ - Saves results and logs per MPI rank in organized folders (`CSV/exports/CIR-16/impute/...`).
 
 Usage Context:
 ------------------------------------------------------------------------------------------------------
@@ -30,165 +30,109 @@ Developed by: [Dimopoulos Dimitrios]
 ======================================================================================================
 """
 
+# ---- Environment (set BEFORE importing TensorFlow) ----
 import os
-# Pin math libraries to 1 thread per MPI rank
-# This block forces those libraries to run single-threaded per MPI rank.
+# Silence most TF C++ warnings (0=all, 1=INFO, 2=WARNING, 3=ERROR)
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 
-# Sets the maximum threads (used by NumPy, SciPy, scikit-learn, XGBoost, etc.) to 1.
+# keep TF from grabbing too many CPU threads when using MPI
 os.environ.setdefault("OMP_NUM_THREADS", "1")
-# Limits OpenBLAS (BLAS implementation used by NumPy) to 1 thread.
-os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
-# Limits Intel MKL (Math Kernel Library, used by some NumPy builds) to 1 thread.
 os.environ.setdefault("MKL_NUM_THREADS", "1")
-# 
-os.environ.setdefault("VECLIB_MAXIMUM_THREADS", "1")
-# Limits NumExpr (fast numerical expression evaluator) to 1 thread.
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("NUMEXPR_NUM_THREADS", "1")
-# Turns off OpenBLAS debug output (so it doesn’t print which threading mode it’s using).
-os.environ.setdefault("OPENBLAS_VERBOSE", "0")
-"""----------------------------------------------------------------------------------------------------------------------"""
+os.environ.setdefault("TF_NUM_INTRAOP_THREADS", "1")
+os.environ.setdefault("TF_NUM_INTEROP_THREADS", "1")
 
+# ---- Standard libs ----
 import sys
-import pandas as pd
-import numpy as np
 import io
-import sys
-import shutil
 import glob
 import time
 import logging
-import hashlib
 import copy
-import errno
-import socket
-import json
-import itertools
+
+# ---- Third-party ----
 from mpi4py import MPI
-
-"""----------------------------------------------------------------------------------------------------------------------"""
-
-import tensorflow as tf
-try:
-    tf.config.threading.set_intra_op_parallelism_threads(1)
-    tf.config.threading.set_inter_op_parallelism_threads(1)
-except Exception as _e:
-    logging.info(f"TF threading config skipped: {_e}")
-
-"""----------------------------------------------------------------------------------------------------------------------"""
-
+import pandas as pd
+import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-
 from matplotlib.patches import Patch
-from xgboost import XGBRegressor
 
-from sklearn.experimental import enable_iterative_imputer
-from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
-from sklearn.linear_model import BayesianRidge, Ridge
-from sklearn.ensemble import ExtraTreesRegressor, HistGradientBoostingRegressor
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.utils.validation import check_is_fitted
-
+# Machine learning / DL
+import tensorflow as tf  # keep ONLY tf.keras (no standalone 'keras')
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, LSTM, RepeatVector, Dense, Concatenate, GRU, Dropout
 from tensorflow.keras.optimizers import Adam
 
-"""----------------------------------------------------------------------------------------------------------------------"""
-def try_claim(lock_path: str) -> bool:
-    """
-    Atomically create a lock file. Returns True if we acquired it, False if someone else did.
-    Safe across ranks/nodes on a shared filesystem.
-    """
-    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
-    try:
-        fd = os.open(lock_path, flags)
-        with os.fdopen(fd, "w") as f:
-            f.write(f"rank={rank}\npid={os.getpid()}\nhost={socket.gethostname()}\n")
-        return True
-    except OSError as e:
-        if e.errno == errno.EEXIST:
-            return False
-        raise
+from xgboost import XGBRegressor
 
-def release_claim(lock_path: str) -> None:
-    try:
-        os.remove(lock_path)
-    except FileNotFoundError:
-        pass
+from sklearn.experimental import enable_iterative_imputer  # noqa: F401 (enables IterativeImputer)
+from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
+from sklearn.linear_model import BayesianRidge, Ridge
+from sklearn.ensemble import ExtraTreesRegressor
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.utils.validation import check_is_fitted
+
+# Quiet absl logs that TF emits
+logging.getLogger('absl').setLevel(logging.ERROR)
 
 
-"""----------------------------------------------------------------------------------------------------------------------"""
+"""
+----------------------------------------------------------
+"""
 
 # --- MPI Setup ---
 comm = MPI.COMM_WORLD
 rank = comm.Get_rank()
 size = comm.Get_size()
 
-# Inject mpi_rank into every record, no matter which logger produced it
-
-_old_factory = logging.getLogRecordFactory()
-def _record_factory(*args, **kwargs):
-    record = _old_factory(*args, **kwargs)
-    if not hasattr(record, "mpi_rank"):
-        record.mpi_rank = rank
-    return record
-logging.setLogRecordFactory(_record_factory)
-
 rank = MPI.COMM_WORLD.Get_rank()
 print(f"[Rank {rank}] Initialized successfully.")
 
 
 
-# --- MPI message tags for dispatcher/worker ---
-TAG_WORK = 1
-TAG_DONE = 2
-TAG_STOP = 3
+# ------------------------------
+# MPI Task Farm (Master–Worker)
+# ------------------------------
+TAG_READY  = 1
+TAG_JOB    = 2
+TAG_RESULT = 3
+TAG_STOP   = 4
+TAG_ERROR  = 5
 
-# --- Logging Config ---
+
+
+""" Logging Config"""
+# === Initial logger setup ===
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+# Global variable to hold the active file handler
 current_file_handler = None
 
-# Named loggers
-io_logger = logging.getLogger("cir.io")
-
-# Console handler — only rank 0, and exclude cir.io
+# Stream handler for console output
 stream_handler = logging.StreamHandler(sys.stdout)
 formatter = logging.Formatter('[Rank %(mpi_rank)d] %(asctime)s - %(levelname)s - %(message)s')
 stream_handler.setFormatter(formatter)
+logger.addHandler(stream_handler)
 
-# --- Makes sure logs know which MPI rank produced them ---
+
+# Add custom attribute for MPI rank
 class MPIRankFilter(logging.Filter):
     def filter(self, record):
         record.mpi_rank = rank
         return True
 
-# --- Hides noisy loggers from the console, but keeps them in file logs ---
-class ExcludeNames(logging.Filter):
-    def __init__(self, *names):
-        self.names = names
-    def filter(self, record):
-        return not any(record.name.startswith(n) for n in self.names)
-
 logger.addFilter(MPIRankFilter())
 
-
-# --- Prevents the console from being flooded with output from all ranks ---
-if rank == 0:
-    stream_handler.setLevel(logging.INFO)
-    stream_handler.addFilter(ExcludeNames("cir.io"))  # hide dataset-load logs on console
-    logger.addHandler(stream_handler)
-
-# Per-rank file log (keeps everything, including cir.io)
+# === Optional: Per-rank log file ===
 per_rank_log_path = f'logs/rank_{rank}.log'
 os.makedirs(os.path.dirname(per_rank_log_path), exist_ok=True)
+
 rank_file_handler = logging.FileHandler(per_rank_log_path, mode='w')
 rank_file_handler.setFormatter(formatter)
 logger.addHandler(rank_file_handler)
-
-
-
 
 # === Function to switch to a shared log file ===
 def switch_log_file(filename_base):
@@ -215,49 +159,51 @@ def switch_log_file(filename_base):
     logger.info(f"Switched logging to shared file {filename}")
 
 
-"""----------------------------------------------------------------------------------------------------------------------"""
-""" Load Datasets """
+"""
+----------------------------------------------------------
+"""
+
+""" Rank-0 dataset discovery (map) + broadcast to workers """
+
+""" dataset_map is now available everywhere and holds the path for any dataset by name (e.g., "o1_X_test"). """
+
 # Build log file
 switch_log_file('logs/CIR-2.log')
 logger.info("This is being logged to CIR-2.log")
 
-# Locate datasets (but **do not** load them yet)
-data_path = "CSV/imports/split_set/without_multiple_rows"
-all_files = sorted([f for f in os.listdir(data_path) if f.endswith(".csv")])
+# Rank 0 discovers files and builds the dataset map
+if rank == 0:
+    data_path = "CSV/imports/split_set/without_multiple_rows"
+    all_files = sorted([f for f in os.listdir(data_path) if f.endswith(".csv")])
+    # Map: "o1_X_test" -> "/.../o1_X_test.csv"
+    dataset_map = {
+        f.replace(".csv", "").replace("-", "_"): os.path.join(data_path, f)
+        for f in all_files
+    }
+    logging.info("+++++++++++++++++CIR-2+++++++++++++++++++++++++")
+    logging.info(f"[Start] Rank 0 built dataset map with {len(dataset_map)} entries.")
+else:
+    dataset_map = None
 
-logging.info("+++++++++++++++++CIR-2+++++++++++++++++++++++++")
-logging.info(f"[Start] Rank {rank} is mapping dataset paths.")
+# Broadcast the map to all ranks
+dataset_map = comm.bcast(dataset_map, root=0)
+logging.info(f"[Rank {rank}] Received dataset map with {len(dataset_map)} entries.")
 
-# Map dataset variable names to file paths (lazy loading)
-dataset_path_map = {}
-for file in all_files:
-    var_name = file.replace(".csv", "").replace("-", "_")
-    file_path = os.path.join(data_path, file)
-    dataset_path_map[var_name] = file_path
-
-logging.info(f"[Rank {rank}] Mapped {len(dataset_path_map)} datasets to file paths.")
-logging.info(f"[Complete] Rank {rank} finished mapping datasets.")
+# Optional: list what this rank can see (small log)
+if rank == 0:
+    logging.info(f"[Complete] Rank 0 broadcast dataset map to all ranks.")
 logging.info("++++++++++++++++++++++++++++++++++++++++++")
 
 # === MPI Synchronization Barrier ===
 comm.Barrier()
-logging.info(f"[Rank {rank}] All ranks reached synchronization barrier after mapping.")
-
-def load_dataset_by_name(name: str):
-    """Load a dataset by name on demand (float32)."""
-    path = dataset_path_map.get(name)
-    if path is None:
-        logging.warning(f"[Rank {rank}] Dataset '{name}' not found in dataset_path_map.")
-        return None
-    # goes to files; filtered out of console
-    io_logger.info(f"[Rank {rank}] Loading on demand -> {name} from {path}")
-    # or: io_logger.debug(...) if you want it at DEBUG level
-    return pd.read_csv(path).astype('float32')
+logging.info(f"[Rank {rank}] All ranks reached synchronization barrier after dataset map broadcast.")
 
 
 
+"""
+----------------------------------------------------------
+"""
 
-"""----------------------------------------------------------------------------------------------------------------------"""
 """
 Impute missing values using XGBoost regression for each column independently.
 """
@@ -308,7 +254,10 @@ def xgboost_imputer(df, random_state=0):
     return df_imputed
 
 
-"""----------------------------------------------------------------------------------------------------------------------"""
+"""
+----------------------------------------------------------
+"""
+
 
 """
 Impute missing values using an LSTM autoencoder.
@@ -362,7 +311,10 @@ def lstm_imputer(df, random_state=0, epochs=1000, batch_size=64):
 
     return df_copy
 
-"""----------------------------------------------------------------------------------------------------------------------"""
+
+"""
+----------------------------------------------------------
+"""
 
 """
 GAN-style imputer for missing data based on GAIN.
@@ -454,7 +406,10 @@ def gan_imputer(df, random_state=0, epochs=1000, batch_size=128):
 
     return df_imputed
 
-"""----------------------------------------------------------------------------------------------------------------------"""
+
+"""
+----------------------------------------------------------
+"""
 
 
 """
@@ -565,7 +520,11 @@ def rnn_imputer(df, random_state=0, epochs=1000, batch_size=64, mask_ratio=0.2, 
     return df_copy
 
 
-"""----------------------------------------------------------------------------------------------------------------------"""
+
+"""
+----------------------------------------------------------
+"""
+
 
 # --- Tee class to redirect output to both stdout and logging ---
 class Tee:
@@ -594,7 +553,7 @@ def impute_with_iterative(input_df, method, output_path, n_iter, log_verbose_fil
 
     # Estimator selection
     if method == "ExtraTrees":
-        estimator = ExtraTreesRegressor(n_estimators=5, random_state=0, n_jobs=1)
+        estimator = ExtraTreesRegressor(n_estimators=5, random_state=0, n_jobs=-1)
     elif method == "HistGradientBoosting":
         estimator = HistGradientBoostingRegressor(random_state=0)
     elif method == "BayesianRidge":
@@ -651,7 +610,11 @@ def impute_with_iterative(input_df, method, output_path, n_iter, log_verbose_fil
     return imputed_df
 
 
-"""----------------------------------------------------------------------------------------------------------------------"""
+"""
+----------------------------------------------------------
+"""
+
+
 # --- Registry of Imputation Methods ---
 imputer_registry = {
     "mean": SimpleImputer(strategy="mean"),
@@ -671,7 +634,10 @@ imputer_registry = {
     "rnn": rnn_imputer
 }
 
-"""----------------------------------------------------------------------------------------------------------------------"""
+
+"""
+----------------------------------------------------------
+"""
 
 # Build log file
 switch_log_file('logs/CIR-16.log')
@@ -707,12 +673,7 @@ def hierarchical_impute_dynamic(
     if len(thresholds) != len(method_names):
         raise ValueError("The number of thresholds must match the number of methods.")
 
-    # Work on a copy; ensure unique index to avoid pandas reindex errors
     df_copy = df.copy()
-    if not df_copy.index.is_unique:
-        logging.info(f"[{dataset_name}] Input index not unique; resetting index.")
-        df_copy = df_copy.reset_index(drop=True)
-
     df_copy["missing_pct"] = df_copy.isnull().mean(axis=1)
     cols = df_copy.columns.drop("missing_pct")
 
@@ -735,13 +696,6 @@ def hierarchical_impute_dynamic(
     method_names_actual = []
     cumulative_total = 0
 
-    # Shared checkpoint folder for this sequence
-    checkpoint_dir = os.path.join(
-        "CSV/exports/CIR-16/impute/threshold",
-        f"seq_{plot_id:02d}_{'_'.join(method_names)}"
-    )
-    os.makedirs(checkpoint_dir, exist_ok=True)
-
     for i, upper_bound in enumerate(cum_thresholds):
         lower_bound = cum_thresholds[i - 1] if i > 0 else 0.0
         idx = df_copy.index[
@@ -749,7 +703,6 @@ def hierarchical_impute_dynamic(
         ]
         group_data = df_copy.loc[idx, cols].copy()
 
-        # Fill all-NaN columns with global means to keep estimators happy
         for col in group_data.columns:
             if group_data[col].isnull().all():
                 group_data[col] = global_means[col]
@@ -760,94 +713,62 @@ def hierarchical_impute_dynamic(
         method_name = method_names[i]
         imputer = get_imputer(method_name, method_registry)
 
-        # --- Group checkpoint path ---
+        # === Checkpoint path ===
+        checkpoint_dir = os.path.join("CSV/exports/CIR-16/impute/threshold", 
+                                      f"seq_{plot_id:02d}_{'_'.join(method_names)}")
+        os.makedirs(checkpoint_dir, exist_ok=True)
         temp_path = os.path.join(checkpoint_dir, f"{dataset_name}_group{i+1:02d}_temp.csv")
 
-        # --- If checkpoint exists, load and continue ---
+        # === If temp exists, load it and skip computation ===
         if os.path.exists(temp_path):
             logging.info(f"[Rank {rank}] Skipping Group {i+1}/{n_groups} — checkpoint found: {temp_path}")
             group_imputed = pd.read_csv(temp_path, index_col=0)
-
-            # Defensive: drop any accidental duplicate index in the checkpoint
-            if not group_imputed.index.is_unique:
-                group_imputed = group_imputed[~group_imputed.index.duplicated(keep="last")]
-
-            # Align back to expected order and clip to global bounds
-            group_imputed = group_imputed.reindex(idx).clip(lower=global_min, upper=global_max, axis=1)
-
-            # Assign
-            imputed_df.loc[idx, cols] = group_imputed.values
+            group_imputed = group_imputed.clip(lower=global_min, upper=global_max, axis=1)
+            imputed_df.loc[idx] = group_imputed
             method_log.loc[idx] = method_name
-            previous_imputed = (
-                pd.concat([previous_imputed, group_imputed])
-                if previous_imputed is not None else group_imputed.copy()
-            )
+            previous_imputed = pd.concat([previous_imputed, group_imputed]) if previous_imputed is not None else group_imputed.copy()
             continue
 
-        # --- Atomic group lock (prevents duplicate work across ranks) ---
-        lock_path = os.path.join(checkpoint_dir, f"{dataset_name}_group{i+1:02d}.lock")
-        if not try_claim(lock_path):
-            logging.info(f"[Rank {rank}] Group {i+1}/{n_groups} already claimed by another worker. Skipping.")
-            continue
+        if previous_imputed is None:
+            combined = group_data
+        else:
+            combined = pd.concat([previous_imputed, group_data])
+
+        logging.info(
+            f"[{dataset_name}][Group {i+1}] "
+            f"({lower_bound:.2f}, {upper_bound:.2f}] -> {method_name} | "
+            f"{len(group_data)} group rows | {len(combined)} total used rows"
+        )
 
         try:
-            combined = group_data if previous_imputed is None else pd.concat([previous_imputed, group_data])
+            if hasattr(imputer, "fit_transform"):
+                combined_imputed = imputer.fit_transform(combined)
+                combined_imputed = pd.DataFrame(combined_imputed, columns=combined.columns, index=combined.index)
+            else:
+                try:
+                    combined_imputed = imputer(combined, random_state=random_state)
+                except TypeError:
+                    combined_imputed = imputer(combined)
+        except Exception as e:
+            logging.exception(f"[Rank {rank}] Error during method '{method_name}' in sequence #{plot_id} on group ({lower_bound:.2f}, {upper_bound:.2f}]: {e}")
+            continue
 
-            logging.info(
-                f"[{dataset_name}][Group {i+1}] "
-                f"({lower_bound:.2f}, {upper_bound:.2f}] -> {method_name} | "
-                f"{len(group_data)} group rows | {len(combined)} total used rows"
-            )
+        group_imputed = combined_imputed.loc[idx].clip(lower=global_min, upper=global_max, axis=1)
+        group_imputed.to_csv(temp_path)  # Save checkpoint
 
-            # Run the chosen imputer
-            try:
-                if hasattr(imputer, "fit_transform"):
-                    combined_imputed = imputer.fit_transform(combined)
-                    combined_imputed = pd.DataFrame(combined_imputed, columns=combined.columns, index=combined.index)
-                else:
-                    try:
-                        combined_imputed = imputer(combined, random_state=random_state)
-                    except TypeError:
-                        combined_imputed = imputer(combined)
-            except Exception as e:
-                logging.exception(
-                    f"[Rank {rank}] Error during method '{method_name}' in sequence #{plot_id} on group "
-                    f"({lower_bound:.2f}, {upper_bound:.2f}]: {e}"
-                )
-                # Skip this group but release the lock
-                continue
+        imputed_df.loc[idx] = group_imputed
+        method_log.loc[idx] = method_name
 
-            # Extract current group's rows, clip, save checkpoint
-            group_imputed = combined_imputed.loc[idx].clip(lower=global_min, upper=global_max, axis=1)
+        previous_imputed = pd.concat([previous_imputed, group_imputed]) if previous_imputed is not None else group_imputed.copy()
 
-            # Defensive: ensure unique index before assignment
-            if not group_imputed.index.is_unique:
-                group_imputed = group_imputed[~group_imputed.index.duplicated(keep="last")]
+        group_label = f"{int(lower_bound * 100)}%–{int(upper_bound * 100)}%"
+        group_names.append(group_label)
+        cumulative_total += len(group_data)
+        cumulative_rows.append(cumulative_total)
+        method_names_actual.append(method_name)
 
-            group_imputed.to_csv(temp_path)  # checkpoint
+        logging.info(f"[Rank {rank}] Finished group {i+1} / {n_groups} for sequence #{plot_id}")
 
-            # Assign to final containers
-            imputed_df.loc[idx, cols] = group_imputed.values
-            method_log.loc[idx] = method_name
-
-            previous_imputed = (
-                pd.concat([previous_imputed, group_imputed])
-                if previous_imputed is not None else group_imputed.copy()
-            )
-
-            # Bookkeeping for plot
-            group_label = f"{int(lower_bound * 100)}%–{int(upper_bound * 100)}%"
-            group_names.append(group_label)
-            cumulative_total += len(group_data)
-            cumulative_rows.append(cumulative_total)
-            method_names_actual.append(method_name)
-
-            logging.info(f"[Rank {rank}] Finished group {i+1} / {n_groups} for sequence #{plot_id}")
-
-        finally:
-            release_claim(lock_path)
-
-    # Final sanity check
     if imputed_df.isnull().values.any():
         raise ValueError("NaNs remain after hierarchical imputation!")
 
@@ -877,27 +798,71 @@ def hierarchical_impute_dynamic(
     plt.legend(handles=legend_handles, title="Imputation Method", loc="lower right")
     plt.tight_layout()
 
-    filename = (
-        f"seq_{plot_id:02d}_{dataset_name}_cumulative_imputation_rows.png"
-        if dataset_name and plot_id is not None
-        else f"{dataset_name}_cumulative_imputation_rows.png"
+    filename = f"seq_{plot_id:02d}_{dataset_name}_cumulative_imputation_rows.png" if dataset_name and plot_id is not None else f"{dataset_name}_cumulative_imputation_rows.png"
+    plt.savefig(os.path.join(output_dir, filename), dpi=300)
+    plt.close()
+
+    # === Cleanup group temp files ===
+    if dataset_name and plot_id is not None:
+        for i in range(n_groups):
+            temp_path = os.path.join(checkpoint_dir, f"{dataset_name}_group{i+1:02d}_temp.csv")
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+
+    return (imputed_df, method_log) if return_method_log else imputed_df
+
+
+    if imputed_df.isnull().values.any():
+        raise ValueError("NaNs remain after hierarchical imputation!")
+
+    # === Plot ===
+    output_dir = "figures/CIR-16"
+    os.makedirs(output_dir, exist_ok=True)
+
+    unique_methods = list(set(method_names_actual))
+    palette = sns.color_palette("tab10", n_colors=len(unique_methods))
+    method_color_map = {method: palette[i] for i, method in enumerate(unique_methods)}
+    colors = [method_color_map[m] for m in method_names_actual]
+
+    plt.figure(figsize=(10, 10))
+    plt.barh(
+        y=range(1, len(cumulative_rows) + 1),
+        width=cumulative_rows,
+        color=colors,
+        edgecolor='black'
     )
+    plt.yticks(ticks=range(1, len(group_names) + 1), labels=group_names)
+    plt.title(f"Cumulative Rows Used for Imputation by Group - {dataset_name}", fontsize=14, fontweight='bold')
+    plt.ylabel("Missingness Range", fontsize=12)
+    plt.xlabel("Cumulative Rows Used", fontsize=12)
+    plt.grid(True, axis='x', linestyle='--', alpha=0.6)
+
+    legend_handles = [Patch(color=color, label=method) for method, color in method_color_map.items()]
+    plt.legend(handles=legend_handles, title="Imputation Method", loc="lower right")
+    plt.tight_layout()
+
+    filename = f"seq_{plot_id:02d}_{dataset_name}_cumulative_imputation_rows.png" if dataset_name and plot_id is not None else f"{dataset_name}_cumulative_imputation_rows.png"
     plt.savefig(os.path.join(output_dir, filename), dpi=300)
     plt.close()
 
     return (imputed_df, method_log) if return_method_log else imputed_df
 
-"""----------------------------------------------------------------------------------------------------------------------"""
 
-# ---  Look up an imputation method by name in a registry dictionary ---
-# ---  and return an instance/function that can perform the imputation. ---
+
+
+"""
+----------------------------------------------------------
+"""
+
+
+
 def get_imputer(method_name, registry):
     imputer = registry.get(method_name)
     if imputer is None:
         raise ValueError(f"Method '{method_name}' not found or not implemented.")
 
     if callable(imputer):
-        return imputer  # SOS -> I should not copy or modify lambdas
+        return imputer  # Don't copy or modify lambdas — just return
 
     if hasattr(imputer, "fit") and hasattr(imputer, "transform"):
         return copy.deepcopy(imputer)
@@ -905,621 +870,20 @@ def get_imputer(method_name, registry):
     return imputer
 
 
-"""----------------------------------------------------------------------------------------------------------------------"""
-
-""" --- Helper + onegroup runner --- """
-
-# --- validates and converts a list of missingness ---
-# --- percentage ranges into cumulative cutoffs. ---
-def _cum_thresholds(thresholds):
-    ct = np.cumsum(thresholds)
-    if not np.isclose(ct[-1], 1.0):
-        raise ValueError("Thresholds must sum to 1.0")
-    return ct
-
-# --- Build the folder path where all checkpoint files ---
-# --- for a specific imputation sequence will be stored. ---
-def _checkpoint_dir(plot_id, method_names):
-    return os.path.join(
-        "CSV/exports/CIR-16/impute/threshold",
-        f"seq_{plot_id:02d}_{'_'.join(method_names)}"
-    )
-
-# --- Build the full file path for the checkpoint CSV ---
-# --- that stores the imputed results for a single group ---
-# --- in the hierarchical imputation process. ---
-def _group_temp_path(checkpoint_dir, dataset_name, gidx):
-    return os.path.join(checkpoint_dir, f"{dataset_name}_group{gidx+1:02d}_temp.csv")
-
-# --- Determine which missingness group (if any) still ---
-# --- needs to be imputed for a given dataset in a given sequence. ---
-def _next_unfinished_group(n_groups, checkpoint_dir, dataset_name):
-    for g in range(n_groups):
-        if not os.path.exists(_group_temp_path(checkpoint_dir, dataset_name, g)):
-            return g
-    return None  # all done
-
-
-# --- Load and combine all completed group checkpoint files
-# --- for a given dataset before the group index upto_g.
-# --- This is needed because your hierarchical imputation
-# --- can use previously imputed groups as extra training data
-# --- for the current group.
-def _load_previous_imputed_upto(checkpoint_dir, dataset_name, upto_g):
-    """Concatenate temp files for groups < upto_g (if any)."""
-    dfs = []
-    for g in range(upto_g):
-        p = _group_temp_path(checkpoint_dir, dataset_name, g)
-        if os.path.exists(p):
-            gi = pd.read_csv(p, index_col=0)
-            if not gi.index.is_unique:
-                gi = gi[~gi.index.duplicated(keep="last")]
-            dfs.append(gi)
-    if not dfs:
-        return None
-    
-    dfs = [df for df in dfs if not df.empty and not df.isna().all().all()]
-    if not dfs:
-        return None
-    prev = pd.concat(dfs, axis=0)
-
-    
-    prev = prev[~prev.index.duplicated(keep="last")]
-    return prev
-
-
-# --- Create a short, unique ID for a list of strings
-# --- (parts) so it can be used in folder names for caching. ---
-def _prefix_hash(parts):
-    s = "|".join(parts)
-    return hashlib.md5(s.encode("utf-8")).hexdigest()[:16]
-    
-
-# --- Build a shared cache directory path for storing/retrieving
-# --- imputation results for a specific prefix of methods across 
-# --- sequences.Allows multiple sequences that start with the same
-# --- methods to reuse early group results instead of recomputing them.
-def _shared_prefix_dir(dataset_name, gidx, method_names):
-    prefix = method_names[:gidx+1]
-    h = _prefix_hash([dataset_name, str(gidx)] + prefix)
-    return os.path.join(
-        "CSV/exports/CIR-16/impute/shared_prefix_cache",
-        f"g{gidx+1:02d}",
-        dataset_name,
-        h
-    )
-# --- Create (if needed) and return the full file path for the cached
-# --- imputation results inside a shared prefix directory.
-def _shared_prefix_temp(shared_dir):
-    os.makedirs(shared_dir, exist_ok=True)
-    return os.path.join(shared_dir, "imputed.csv")
-
-# --- Copy a file from a source path (src) to a destination path (dst)
-# --- only if the destination file does not already exist.
-def _copy_if_missing(src, dst):
-    os.makedirs(os.path.dirname(dst), exist_ok=True)
-    if not os.path.exists(dst):
-        try:
-            shutil.copy2(src, dst)
-        except Exception as _e:
-            logging.info(f"Copy fallback failed ({_e}); writing new file next steps will create it.")
-
-
-
-
-# --- Manifest method ---
-
-MANIFEST_NAME = "methods_manifest.json"
-
-def _seq_dir(plot_id, method_names):
-    return _checkpoint_dir(plot_id, method_names)
-
-def _manifest_path(seq_dir):
-    return os.path.join(seq_dir, MANIFEST_NAME)
-
-def _load_manifest(seq_dir):
-    p = _manifest_path(seq_dir)
-    if os.path.exists(p):
-        try:
-            with open(p, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            logging.warning(f"Manifest at {p} unreadable; ignoring.")
-    return None
-
-def _save_manifest(seq_dir, method_names, thresholds):
-    try:
-        with open(_manifest_path(seq_dir), "w", encoding="utf-8") as f:
-            json.dump({"methods": method_names, "thresholds": thresholds}, f)
-    except Exception as e:
-        logging.warning(f"Could not write manifest: {e}")
-
-def _first_change_index(prev_methods, new_methods):
-    if not prev_methods:
-        return None
-    n = min(len(prev_methods), len(new_methods))
-    for i in range(n):
-        if prev_methods[i] != new_methods[i]:
-            return i
-    if len(prev_methods) != len(new_methods):
-        return n
-    return None  # identical
-
-# ---
-def _invalidate_from_g(seq_dir, dataset_name, start_g, n_groups):
-    """Delete per-sequence checkpoints for groups >= start_g."""
-    if start_g is None:
-        return
-    for g in range(start_g, n_groups):
-        p = _group_temp_path(seq_dir, dataset_name, g)
-        if os.path.exists(p):
-            try:
-                os.remove(p)
-                logging.info(f"[Invalidate] Removed {os.path.basename(p)}")
-            except Exception as e:
-                logging.warning(f"[Invalidate] Could not remove {p}: {e}")
-
-
-
-
-
-
-# --- ---
-
-def seed_prefix_checkpoints(dataset_name, thresholds, method_names, plot_id):
-    """
-    Copy per-group temp files for the longest common prefix of methods from ANY existing sequence directory,
-    BUT never seed beyond this sequence's first unfinished group. This prevents jumping ahead when an earlier
-    group is still computing on another rank.
-    """
-    cur_dir = _checkpoint_dir(plot_id, method_names)
-    os.makedirs(cur_dir, exist_ok=True)
-
-    seeded_flag = os.path.join(cur_dir, f"{dataset_name}.seeded")
-    if os.path.exists(seeded_flag):
-        return
-
-    # Determine first unfinished group in THIS sequence (per dataset)
-    n_groups = len(thresholds)
-    first_unfinished = _next_unfinished_group(n_groups, cur_dir, dataset_name)
-    if first_unfinished is None:
-        # Nothing to seed; everything is already present
-        with open(seeded_flag, "w") as f:
-            f.write("ok\n")
-        return
-
-    # Respect prior manifest (hard invalidation support): don't seed at/after first change
-    prev = _load_manifest(cur_dir)
-    change_i = _first_change_index(prev.get("methods") if prev else None, method_names)
-    if change_i is not None:
-        # We cannot seed at/after change_i
-        first_unfinished = min(first_unfinished, change_i)
-
-    if not os.path.isdir(BASE_OUTPUT_ROOT):
-        with open(seeded_flag, "w") as f:
-            f.write("ok\n")
-        return
-
-    # Find best existing sequence dir to reuse from (by longest common prefix of methods)
-    best_src_dir = None
-    best_prefix = 0
-    for dname in os.listdir(BASE_OUTPUT_ROOT):
-        src_dir = os.path.join(BASE_OUTPUT_ROOT, dname)
-        if not os.path.isdir(src_dir):
-            continue
-        other_methods = _parse_methods_from_dirname(dname)
-        if not other_methods:
-            continue
-        lcp = _longest_common_prefix_len(method_names, other_methods)
-        if lcp > best_prefix:
-            best_prefix = lcp
-            best_src_dir = src_dir
-
-    if best_src_dir and best_prefix > 0:
-        # NEW: never seed beyond the first unfinished group
-        max_seed_g = min(best_prefix, first_unfinished)
-        for g in range(max_seed_g):
-            src = _group_temp_path(best_src_dir, dataset_name, g)
-            if os.path.exists(src):
-                dst = _group_temp_path(cur_dir, dataset_name, g)
-                if not os.path.exists(dst):
-                    try:
-                        shutil.copy2(src, dst)
-                        logging.info(
-                            f"[Rank {rank}] Seeded {dataset_name} g{g+1:02d} "
-                            f"from '{os.path.basename(best_src_dir)}' into "
-                            f"'{os.path.basename(cur_dir)}' (strict order)."
-                        )
-                    except Exception as e:
-                        logging.warning(f"[Rank {rank}] Could not seed {src} -> {dst}: {e}")
-
-    # Mark seeded to avoid repeating scanning this run
-    try:
-        with open(seeded_flag, "w") as f:
-            f.write("ok\n")
-    except Exception:
-        pass
-
-
-
-
-# --- Call the seeder to find the most common prefix
-
-def worker_loop(comm):
-    while True:
-        status = MPI.Status()
-        task = comm.recv(source=0, tag=MPI.ANY_TAG, status=status)
-        tag = status.Get_tag()
-
-        if tag == TAG_STOP or task is None:
-            break
-
-        seq_idx, dataset, thresholds, method_names = task
-
-        df = load_dataset_by_name(dataset)
-        if df is None or not isinstance(df, pd.DataFrame):
-            comm.send((seq_idx, dataset, True, False), dest=0, tag=TAG_DONE)
-            continue
-
-        # seed current sequence’s checkpoint dir with the best available prefix
-        seed_prefix_checkpoints(
-            dataset_name=dataset,
-            thresholds=thresholds,
-            method_names=method_names,
-            plot_id=seq_idx
-        )
-
-        done, progressed = run_one_group(
-            df=df,
-            dataset_name=dataset,
-            thresholds=thresholds,
-            method_names=method_names,
-            method_registry=imputer_registry,
-            random_state=0,
-            plot_id=seq_idx
-        )
-
-        comm.send((seq_idx, dataset, done, progressed), dest=0, tag=TAG_DONE)
-
-
-
-def run_one_group(df, dataset_name, thresholds, method_names, method_registry, random_state, plot_id):
-    """
-    Returns:
-        done (bool): True if all groups finished already.
-        progressed (bool): True if we actually completed one group now.
-    """
-    # --- Prep dataframe ---
-    df_copy = df.copy()
-    if not df_copy.index.is_unique:
-        df_copy = df_copy.reset_index(drop=True)
-
-    df_copy["missing_pct"] = df_copy.isnull().mean(axis=1)
-    cols = df_copy.columns.drop("missing_pct")
-
-    global_means = df_copy[cols].mean().fillna(0)
-    global_min = df_copy[cols].min()
-    global_max = df_copy[cols].max()
-
-    # --- Group bookkeeping ---
-    cum_th = _cum_thresholds(thresholds)
-    n_groups = len(cum_th)
-
-    # Per-sequence checkpoint dir (where dispatcher expects temps)
-    seq_dir = _checkpoint_dir(plot_id, method_names)
-    os.makedirs(seq_dir, exist_ok=True)
-
-    # === NEW: detect first change vs previous manifest and invalidate >= change_i ===
-    prev_manifest = _load_manifest(seq_dir)
-    change_i = _first_change_index(prev_manifest.get("methods") if prev_manifest else None, method_names)
-    if change_i is not None:
-        _invalidate_from_g(seq_dir, dataset_name, change_i, n_groups)
-
-    # Pick next unfinished group by looking at *sequence* directory
-    g = _next_unfinished_group(n_groups, seq_dir, dataset_name)
-    if g is None:
-        return True, False  # all done
-
-    lower = cum_th[g - 1] if g > 0 else 0.0
-    upper = cum_th[g]
-    idx = df_copy.index[
-        (df_copy["missing_pct"] > lower) & (df_copy["missing_pct"] <= upper)
-    ]
-    group_data = df_copy.loc[idx, cols].copy()
-
-    # Fill all-NaN columns
-    for c in group_data.columns:
-        if group_data[c].isnull().all():
-            group_data[c] = global_means[c]
-
-    # Paths
-    seq_temp_path = _group_temp_path(seq_dir, dataset_name, g)
-
-    # --- Shared prefix cache paths (same across sequences that share prefix up to g) ---
-    shared_dir = _shared_prefix_dir(dataset_name, g, method_names)
-    shared_temp_path = _shared_prefix_temp(shared_dir)  # ensures dir exists
-    shared_lock_path = os.path.join(shared_dir, "compute.lock")
-
-    # === NEW: force recompute rule — ignore reuse for groups >= first change ===
-    force_recompute = (change_i is not None and g >= change_i)
-    if force_recompute:
-        # Ensure local checkpoint doesn't mask recompute
-        if os.path.exists(seq_temp_path):
-            try:
-                os.remove(seq_temp_path)
-            except Exception:
-                pass
-    else:
-        # Normal reuse allowed only before first change
-        if os.path.exists(shared_temp_path):
-            _copy_if_missing(shared_temp_path, seq_temp_path)
-            logging.info(f"[Rank {rank}] Reused shared prefix cache for {dataset_name} g{g+1:02d}")
-            return False, True
-
-        # If this sequence already has the file (rare, but possible), promote it to shared and skip
-        if os.path.exists(seq_temp_path):
-            _copy_if_missing(seq_temp_path, shared_temp_path)
-            logging.info(f"[Rank {rank}] Promoted seq-local checkpoint to shared cache for {dataset_name} g{g+1:02d}")
-            return False, True
-
-    # If empty group, just mark as "done" in BOTH places
-    if group_data.empty:
-        pd.DataFrame(columns=cols, index=idx).to_csv(shared_temp_path)
-        _copy_if_missing(shared_temp_path, seq_temp_path)
-        return False, True
-
-    # Resolve imputer for this group
-    method_name = method_names[g]
-    imputer = get_imputer(method_name, method_registry)
-
-    # --- Shared lock so only one rank computes this prefix once ---
-    lock_path = shared_lock_path
-    if not try_claim(lock_path):
-        # Log this *once* per lock using a notice file next to the lock
-        notice_path = os.path.join(shared_dir, "compute.lock.notice")
-        try:
-            fd = os.open(notice_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            with os.fdopen(fd, "w") as f:
-                f.write(f"first_seen={time.time()}\nrank={rank}\nhost={socket.gethostname()}\n")
-            logging.info(f"[Shared] Lock held; skipping {dataset_name} g{g+1:02d} for now")
-        except OSError as e:
-            # If the notice already exists, stay quiet; otherwise, emit a debug
-            if e.errno != errno.EEXIST:
-                logging.debug(f"[Rank {rank}] Notice create failed for {dataset_name} g{g+1:02d}: {e}")
-        return False, False
-
-    try:
-        # Previous imputed rows come from *sequence* dir (what dispatcher expects us to build)
-        previous_imputed = _load_previous_imputed_upto(seq_dir, dataset_name, g)
-        combined = group_data if previous_imputed is None else pd.concat([previous_imputed, group_data])
-
-        logging.info(
-            f"[{dataset_name}][Group {g+1}] ({lower:.2f}, {upper:.2f}] -> {method_name} | "
-            f"{len(group_data)} group rows | {len(combined)} total used rows"
-        )
-
-        # Run imputer
-        try:
-            if hasattr(imputer, "fit_transform"):
-                combined_imputed = imputer.fit_transform(combined)
-                combined_imputed = pd.DataFrame(combined_imputed, columns=combined.columns, index=combined.index)
-            else:
-                try:
-                    combined_imputed = imputer(combined, random_state=random_state)
-                except TypeError:
-                    combined_imputed = imputer(combined)
-        except Exception as e:
-            logging.exception(
-                f"[Rank {rank}] Error in '{method_name}' on group ({lower:.2f}, {upper:.2f}]: {e}"
-            )
-            return False, False
-
-        group_imputed = combined_imputed.loc[idx].clip(lower=global_min, upper=global_max, axis=1)
-        if not group_imputed.index.is_unique:
-            group_imputed = group_imputed[~group_imputed.index.duplicated(keep="last")]
-
-        # Write to shared cache first, then mirror to this sequence
-        group_imputed.to_csv(shared_temp_path)
-        _copy_if_missing(shared_temp_path, seq_temp_path)
-
-        logging.info(f"[Rank {rank}] Finished group {g+1} for sequence #{plot_id}")
-
-        return False, True
-
-    finally:
-        release_claim(lock_path)
-        # Allow one-time logging again on the next contention
-        try:
-            os.remove(os.path.join(shared_dir, "compute.lock.notice"))
-        except FileNotFoundError:
-            pass
-
-
-
-"""----------------------------------------------------------------------------------------------------------------------"""
-# --- worker & dispatcher ---
-
-def all_groups_done(dataset_name, thresholds, method_names, plot_id):
-    checkpoint_dir = _checkpoint_dir(plot_id, method_names)
-    n_groups = len(thresholds)
-    for g in range(n_groups):
-        if not os.path.exists(_group_temp_path(checkpoint_dir, dataset_name, g)):
-            return False
-    return True
-
-def stitch_final_outputs(dataset_name, thresholds, method_names, plot_id):
-    checkpoint_dir = _checkpoint_dir(plot_id, method_names)
-    parts = []
-    for g in range(len(thresholds)):
-        p = _group_temp_path(checkpoint_dir, dataset_name, g)
-        if os.path.exists(p):
-            gi = pd.read_csv(p, index_col=0)
-            parts.append(gi)
-    if not parts:
-        return None, None
-    full = pd.concat(parts, axis=0)
-    full = full[~full.index.duplicated(keep="last")].sort_index()
-
-    method_map = {}
-    for g in range(len(thresholds)):
-        p = _group_temp_path(checkpoint_dir, dataset_name, g)
-        if os.path.exists(p):
-            gi = pd.read_csv(p, index_col=0)
-            method = method_names[g]
-            for idx in gi.index:
-                method_map[idx] = method
-    method_log = pd.Series(method_map).sort_index()
-
-    return full, method_log
-
-
-def dispatcher(comm, work_items):
-    queue = [(seq_idx, dataset, thresholds, method_names)
-             for (seq_idx, _folder, dataset, thresholds, method_names) in work_items]
-
-    idle_workers = list(range(1, size))
-    in_flight = {}
-
-    # Prime the workers
-    while queue and idle_workers:
-        w = idle_workers.pop(0)
-        task = queue.pop(0)
-        in_flight[w] = task
-        comm.send(task, dest=w, tag=TAG_WORK)
-
-    while in_flight:
-        status = MPI.Status()
-        msg = comm.recv(source=MPI.ANY_SOURCE, tag=TAG_DONE, status=status)
-        w = status.Get_source()
-        seq_idx, dataset, done, progressed = msg
-        task = in_flight.pop(w)
-
-        # If finished, stitch + write outputs once
-        if all_groups_done(dataset, task[2], task[3], seq_idx):
-            imputed_df, method_log = stitch_final_outputs(dataset, task[2], task[3], seq_idx)
-            base_output_root = "CSV/exports/CIR-16/impute/threshold"
-            method_sequence_str = "_".join(task[3])
-            subfolder_path = os.path.join(base_output_root, f"seq_{seq_idx:02d}_{method_sequence_str}")
-            os.makedirs(subfolder_path, exist_ok=True)
-            if imputed_df is not None:
-                imputed_path = os.path.join(subfolder_path, f"{dataset}_rank0.csv")
-                imputed_df.to_csv(imputed_path, index=False)
-            if method_log is not None:
-                method_log_path = os.path.join(subfolder_path, f"{dataset}_method_log_rank0.csv")
-                method_log.to_csv(method_log_path, index=False)
-            # NEW: persist manifest for this sequence dir
-            seq_dir = _checkpoint_dir(seq_idx, task[3])
-            _save_manifest(seq_dir, task[3], task[2])
-            logging.info(f"[Rank 0] Finalized {dataset} for sequence #{seq_idx}")
-
-        else:
-            # Not complete — requeue to keep progressing next group
-            queue.append(task)
-
-        # Reassign or stop worker
-        if queue:
-            next_task = queue.pop(0)
-            in_flight[w] = next_task
-            comm.send(next_task, dest=w, tag=TAG_WORK)
-        else:
-            comm.send(None, dest=w, tag=TAG_STOP)
-
-    # Ensure everyone stops
-    for w in range(1, size):
-        comm.send(None, dest=w, tag=TAG_STOP)
-
-
-"""----------------------------------------------------------------------------------------------------------------------"""
 """
-Copy per-group temp files for the longest common prefix of methods from ANY existing sequence directory, so we don't recompute groups that won't change.
+----------------------------------------------------------
 """
 
-BASE_OUTPUT_ROOT = "CSV/exports/CIR-16/impute/threshold"
 
-#def _seq_dir_name(plot_id, method_names):
-#    return f"seq_{plot_id:02d}_{'_'.join(method_names)}"
-
-def _longest_common_prefix_len(a, b):
-    n = min(len(a), len(b))
-    for i in range(n):
-        if a[i] != b[i]:
-            return i
-    return n
-
-def _parse_methods_from_dirname(dname):
-    # expects: seq_XX_<method>_<method>_...
-    parts = dname.split("_", 2)
-    if len(parts) < 3 or not parts[0].startswith("seq"):
-        return None
-    methods_str = parts[2]
-    return methods_str.split("_")
-
-def seed_prefix_checkpoints(dataset_name, thresholds, method_names, plot_id):
-    cur_dir = _checkpoint_dir(plot_id, method_names)
-    os.makedirs(cur_dir, exist_ok=True)
-
-    seeded_flag = os.path.join(cur_dir, f"{dataset_name}.seeded")
-    if os.path.exists(seeded_flag):
-        return
-
-    # NEW: ensure the root exists (or return if it doesn't)
-    if not os.path.isdir(BASE_OUTPUT_ROOT):
-        # nothing to reuse yet
-        with open(seeded_flag, "w") as f:
-            f.write("ok\n")
-        return
-
-
-    # Scan all existing sequence dirs and try to reuse the best prefix we can find
-    best_src_dir = None
-    best_prefix = 0
-    
-
-    for dname in os.listdir(BASE_OUTPUT_ROOT):
-        src_dir = os.path.join(BASE_OUTPUT_ROOT, dname)
-        if not os.path.isdir(src_dir):
-            continue
-        other_methods = _parse_methods_from_dirname(dname)
-        if not other_methods:
-            continue
-        lcp = _longest_common_prefix_len(method_names, other_methods)
-        if lcp > best_prefix:
-            best_prefix = lcp
-            best_src_dir = src_dir
-
-    if best_src_dir and best_prefix > 0:
-        # Copy temp files for all groups before the change point
-        for g in range(best_prefix):
-            src = _group_temp_path(best_src_dir, dataset_name, g)
-            if os.path.exists(src):
-                dst = _group_temp_path(cur_dir, dataset_name, g)
-                if not os.path.exists(dst):
-                    try:
-                        shutil.copy2(src, dst)
-                        logging.info(f"[Rank {rank}] Seeded group {g+1:02d} for {dataset_name} "
-                                     f"from '{os.path.basename(best_src_dir)}' into "
-                                     f"'{os.path.basename(cur_dir)}'.")
-                    except Exception as e:
-                        logging.warning(f"[Rank {rank}] Could not seed {src} -> {dst}: {e}")
-
-    # mark seeded to skip next time
-    try:
-        with open(seeded_flag, "w") as f:
-            f.write("ok\n")
-    except Exception:
-        pass
-
-
-"""----------------------------------------------------------------------------------------------------------------------"""
 
 
 methods_all = ["mean", "median", "knn", "iterative_simple", "iterative_function", "xgboost", "gan", "lstm", "rnn"]
 
+# methods_all = ["mean", "median", "knn", "iterative_function", "xgboost", "gan", "lstm", "rnn"]
+
 # Define all datasets
 datasets = [
-    "o1_X_external" #"o2_X_test", "o3_X_test", "o4_X_test",
-    #"o1_X_validate", "o2_X_validate", "o3_X_validate", "o4_X_validate"
-    
+    "o1_X_test", "o1_X_validate"
     #"o1_X_train", "o1_X_validate", "o1_X_test", "o1_X_external",
     #"o2_X_train", "o2_X_validate", "o2_X_test", "o2_X_external",
     #"o3_X_train", "o3_X_validate", "o3_X_test", "o3_X_external",
@@ -1532,42 +896,46 @@ datasets = [
 """
 # Define the fixed sequence builder
 
+
+import itertools
+
 def build_sequences():
     
     #------------------------0%------------------------------
     # Jerez et al., 2010; Batista & Monard, 2003; Che et al., 2018.
     
-    group_A = ["knn"] #["knn", "median", "mean"] #5 1
-    group_B = ["knn"] #["knn", "median", "mean"] #5 2
-    group_C = ["knn"] #["knn", "median", "mean"] #5 3
-    group_D = ["knn"] #["knn", "median", "mean"] #5 4
-    group_E = ["knn"] #["knn", "median", "mean"] #5 5
-    group_F = ["knn"] #["knn", "median", "mean"] #5 6
+    group_A =  ["knn"] #["knn"] #["knn", "median", "mean"] #5
+    group_B =  ["knn"] #["knn"] #["knn", "median", "mean"] #5
+    group_C =  ["knn"] #["knn"] #["knn", "median", "mean"] #5
+    group_D =  ["knn"] #["iterative_function"] #["knn", "median", "mean"] #5
+    group_E =  ["knn"] #["iterative_function"] #["knn", "median", "mean"] #5
+    group_F =  ["knn"] #["iterative_function"] #["knn", "median", "mean"] #5
     
     #------------------------30%------------------------------
     # Bertsimas et al., 2018 (data-driven MICE with tree-based models); Lin et al., 2020 (XGBoost outperforms for ICU datasets).
     
-    group_G = ["iterative_function"] #["iterative_function", "xgboost"] #5 7
-    group_H = ["xgboost"] #["xgboost", "iterative_function"] #5 8
-    group_I = ["xgboost"] #["xgboost", "iterative_function"] #5 9
-    group_J = ["xgboost"] #["xgboost", "iterative_function"] #5 10
-    group_K = ["xgboost"] #["xgboost", "iterative_function"] #5 11
-    group_L = ["xgboost"] #["xgboost", "iterative_function"] #5 12
+    group_G = ["mean"] #["iterative_function"] #["iterative_function", "xgboost"] #5
+    group_H = ["mean"] #["xgboost"] #["xgboost", "iterative_function"] #5
+    group_I = ["mean"] #["xgboost"] #["xgboost", "iterative_function"] #5
+    group_J = ["mean"] #["xgboost"] #["xgboost", "iterative_function"] #5
+    group_K = ["mean"] #["xgboost"] #["xgboost", "iterative_function"] #5
+    group_L = ["mean"] #["xgboost"] #["xgboost", "iterative_function"] #5
     
     #------------------------60%------------------------------
     # Yoon et al., 2019 (BRITS), Cao et al., 2018 (GRU-D).
     
-    group_M = ["lstm", "rnn" ] #5 13
-    group_N = ["lstm", "rnn"] #5 14
-    group_O = ["lstm", "rnn"] #5 15
-    group_P = ["lstm", "rnn"] #5 16
+    group_M = ["median"] #["lstm"] #["lstm", "rnn" ] #5
+    group_N = ["median"] #["lstm"] #["lstm", "rnn"] #5
+    group_O = ["median"] #["lstm"] #["lstm", "rnn"] #5
+    group_P = ["median"] #["gan"] #["lstm", "rnn"] #5
     
     #------------------------80%------------------------------
     # Yoon et al., 2018 (GAIN); Luo et al., 2020.
     
-    group_Q = ["gan", "rnn"] #10 17
-    group_R = ["gan", "rnn"] #10 18
+    group_Q = ["gan"] #["gan", "rnn"] #10
+    group_R = ["gan"] #["gan", "rnn"] #10
     
+    #------------------------60%------------------------------
 
     thresholds = [0.05]*16 + [0.10]*2  # groups = 100%
     work_items = []
@@ -1597,10 +965,10 @@ def build_sequences():
 """
 
 # Custom function to split work across ranks without numpy
-#def split_evenly(lst, n):
-#    """Split list lst into n nearly equal parts."""
-#    k, m = divmod(len(lst), n)
-#    return [lst[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)]
+def split_evenly(lst, n):
+    """Split list `lst` into `n` nearly equal parts."""
+    k, m = divmod(len(lst), n)
+    return [lst[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)]
 
 # --- Build sequences and combinations ---
 import time
@@ -1627,31 +995,324 @@ work_items, index_records = build_sequences()
 print(f"Total sequences generated: {len(work_items)}")
 
 
+# === Distribute work across ranks ===
+items_per_rank = split_evenly(work_items, size)
+local_work = items_per_rank[rank]
+print(f"[Rank {rank}] Received {len(local_work)} work items out of {len(work_items)} total.")
+
+# === Ensure base output path exists ===
+base_output_root = "CSV/exports/CIR-16/impute/threshold"
+os.makedirs(base_output_root, exist_ok=True)
 
 
-"""----------------------------------------------------------------------------------------------------------------------"""
+
+"""
+----------------------------------------------------------
+"""
 
 
-# === Dynamic scheduling ===
+
+
+
+
+
+
+
+
+
+"""On-demand loading + timing gather"""
+
+
+"""
+Workers load only the dataset they are currently working on (_load_dataset_by_name).
+
+A tiny per-rank cache _dataset_cache avoids repeated disk I/O if a rank works on the same dataset again.
+
+We gather timing from all ranks to rank 0 so your summary file includes everyone’s timings (previously rank 0 only had its own).
+
+"""
+
+
+
+# --- Build sequences and combinations ---
+work_items, index_records = build_sequences()
+print(f"Total sequences generated: {len(work_items)}")
+
+# === Ensure base output path exists ===
+base_output_root = "CSV/exports/CIR-16/impute/threshold"
+os.makedirs(base_output_root, exist_ok=True)
+
+# ------------------------------
+# On-demand dataset loader (per-rank cache)
+# ------------------------------
+_dataset_cache = {}
+
+def _load_dataset_by_name(name: str) -> pd.DataFrame:
+    """Load a dataset by name using the broadcasted dataset_map. Cached per rank."""
+    if name not in dataset_map:
+        logging.warning(f"[Rank {rank}] Dataset '{name}' not found in dataset_map. Skipping.")
+        return None
+    if name in _dataset_cache:
+        return _dataset_cache[name]
+    path = dataset_map[name]
+    logging.info(f"[Rank {rank}] Loading dataset '{name}' from {path}")
+    df = pd.read_csv(path).astype('float32')
+    _dataset_cache[name] = df
+    logging.info(f"[Rank {rank}] Loaded '{name}' with shape {df.shape}")
+    return df
+
+
+
+def _job_already_done(dataset_name: str, method_names: list, idx: int) -> bool:
+    """Check if any rank already produced output for (sequence idx, dataset)."""
+    method_sequence_str = "_".join(method_names)
+    folder_name = f"seq_{idx:02d}_{method_sequence_str}"
+    subfolder_path = os.path.join(base_output_root, folder_name)
+    os.makedirs(subfolder_path, exist_ok=True)
+    imputed_path_pattern = os.path.join(subfolder_path, f"{dataset_name}_rank*.csv")
+    existing_files = glob.glob(imputed_path_pattern)
+    return len(existing_files) > 0
+
+def _do_one_job_locally(job):
+    """Execute one job (used by workers and also by rank 0 in single-rank fallback)."""
+    idx = job["idx"]
+    dataset_name = job["dataset_name"]
+    thresholds = job["thresholds"]
+    method_names = job["method_names"]
+
+    # Skip if already done
+    if _job_already_done(dataset_name, method_names, idx):
+        logging.info(f"[Rank {rank}] Skipping sequence #{idx:02d} on {dataset_name} — existing outputs found.")
+        return {"idx": idx, "dataset": dataset_name, "duration": 0.0, "skipped": True}
+
+    method_sequence_str = "_".join(method_names)
+    folder_name = f"seq_{idx:02d}_{method_sequence_str}"
+    subfolder_path = os.path.join(base_output_root, folder_name)
+    os.makedirs(subfolder_path, exist_ok=True)
+
+    logging.info(f"[Rank {rank}] Processing sequence #{idx:02d} on {dataset_name} using: {' | '.join(method_names)}")
+
+    df = _load_dataset_by_name(dataset_name)
+    if df is None or not isinstance(df, pd.DataFrame):
+        msg = f"[Rank {rank}] Skipping {dataset_name} (not found or not a DataFrame)"
+        logging.info(msg)
+        return {"idx": idx, "dataset": dataset_name, "duration": 0.0, "error": msg}
+
+    try:
+        start_time = time.time()
+
+        imputed_df, method_log = hierarchical_impute_dynamic(
+            df=df,
+            thresholds=thresholds,
+            method_names=method_names,
+            method_registry=imputer_registry,
+            random_state=0,
+            return_method_log=True,
+            dataset_name=dataset_name,
+            plot_id=idx
+        )
+
+        duration = time.time() - start_time
+
+        imputed_path = os.path.join(subfolder_path, f"{dataset_name}_rank{rank}.csv")
+        method_log_path = os.path.join(subfolder_path, f"{dataset_name}_method_log_rank{rank}.csv")
+
+        imputed_df.to_csv(imputed_path, index=False)
+        method_log.to_csv(method_log_path, index=False)
+
+        logging.info(f"[Rank {rank}] Saved: {imputed_path}")
+
+        return {"idx": idx, "dataset": dataset_name, "duration": duration}
+
+    except Exception as e:
+        logging.exception(f"[Rank {rank}] ❌ Exception during step #{idx} on {dataset_name}")
+        return {"idx": idx, "dataset": dataset_name, "duration": 0.0, "error": str(e)}
+
+def _master_loop(all_jobs):
+    """Rank 0: dispatch jobs to workers that announce READY. Collect timing & errors."""
+    num_workers = size - 1
+    if num_workers <= 0:
+        # Fallback: single-process run
+        results = []
+        for j in all_jobs:
+            res = _do_one_job_locally(j)
+            results.append(res)
+        return results
+
+    # Convert work list to a queue we can pop from
+    job_queue = list(all_jobs)
+    in_flight = 0
+    stopped = 0
+    results = []
+
+    logging.info(f"[Rank 0] Master starting task farm with {num_workers} workers and {len(job_queue)} jobs.")
+
+    while stopped < num_workers:
+        status = MPI.Status()
+        # Receive any incoming control msg from any worker
+        msg = comm.recv(source=MPI.ANY_SOURCE, tag=MPI.ANY_TAG, status=status)
+        src = status.Get_source()
+        tag = status.Get_tag()
+
+        if tag == TAG_READY:
+            # Worker is ready; give it a job or tell it to stop
+            if job_queue:
+                job = job_queue.pop(0)
+                # Quick skip check: if already done, don't waste worker time
+                if _job_already_done(job["dataset_name"], job["method_names"], job["idx"]):
+                    results.append({"idx": job["idx"], "dataset": job["dataset_name"], "duration": 0.0, "skipped": True})
+                    # Immediately send another job if available; otherwise STOP
+                    if job_queue:
+                        next_job = job_queue.pop(0)
+                        comm.send(next_job, dest=src, tag=TAG_JOB)
+                        in_flight += 1
+                    else:
+                        comm.send(None, dest=src, tag=TAG_STOP)
+                        stopped += 1
+                else:
+                    comm.send(job, dest=src, tag=TAG_JOB)
+                    in_flight += 1
+            else:
+                # No more jobs: stop this worker
+                comm.send(None, dest=src, tag=TAG_STOP)
+                stopped += 1
+
+        elif tag == TAG_RESULT:
+            # Worker finished one job
+            results.append(msg)  # msg is result dict
+            in_flight = max(0, in_flight - 1)
+
+        elif tag == TAG_ERROR:
+            # Worker reports an error but keeps going
+            logging.error(f"[Rank 0] Worker {src} reported error: {msg}")
+        else:
+            logging.warning(f"[Rank 0] Received unknown tag {tag} from {src}")
+
+    logging.info(f"[Rank 0] Master finished: collected {len(results)} results.")
+    return results
+
+def _worker_loop():
+    """Ranks 1..N: announce READY, receive JOBs, run, send RESULT, repeat until STOP."""
+    while True:
+        comm.send(None, dest=0, tag=TAG_READY)
+        status = MPI.Status()
+        job = comm.recv(source=0, tag=MPI.ANY_TAG, status=status)
+        tag = status.Get_tag()
+
+        if tag == TAG_STOP:
+            break
+        elif tag == TAG_JOB:
+            res = _do_one_job_locally(job)
+            # Send result back
+            comm.send(res, dest=0, tag=TAG_RESULT)
+        else:
+            # Unexpected message/tag
+            comm.send(f"Unexpected tag {tag}", dest=0, tag=TAG_ERROR)
+
+# ------------------------------
+# Build the job list from work_items
+# ------------------------------
+all_jobs = []
+for idx, _, dataset_name, thresholds, method_names in work_items:
+    all_jobs.append({
+        "idx": idx,
+        "dataset_name": dataset_name,
+        "thresholds": thresholds,
+        "method_names": method_names,
+    })
+
+# ------------------------------
+# Run the farm
+# ------------------------------
 if rank == 0:
-    dispatcher(comm, work_items)
+    results = _master_loop(all_jobs)
+    # Prepare timing map for later logging
+    merged_timing = {}
+    for r in results:
+        if "duration" in r and r.get("duration", 0) > 0:
+            merged_timing[(r["idx"], r["dataset"])] = r["duration"]
+else:
+    _worker_loop()
+    merged_timing = None
 
-    # Save the index file at the end (like before)
-    base_output_root = "CSV/exports/CIR-16/impute/threshold"
-    os.makedirs(base_output_root, exist_ok=True)
+# Broadcast/collect merged timing to rank 0 (in case you want it elsewhere later)
+if rank == 0:
+    all_timing_records = merged_timing
+else:
+    all_timing_records = None
+
+comm.Barrier()
+
+# === Rank 0 saves the index file and description log ===
+if rank == 0:
     index_df = pd.DataFrame(index_records)
     index_df_path = os.path.join(base_output_root, "imputation_sequence_index.csv")
     index_df.to_csv(index_df_path, index=False)
     logging.info(f"[Rank 0] Saved index file: {index_df_path}")
 
-    # Optional: sequence_description.txt (timings per dataset are harder now; keep if you want)
+    # Save human-readable sequence description log
     text_log_path = os.path.join(base_output_root, "sequence_description.txt")
     with open(text_log_path, "w", encoding="utf-8") as f:
-        for record in index_records:
+        for idx2, record in enumerate(index_records):
             f.write(f"{record['sequence_id']}: {record['methods']}\n")
+            for dataset in datasets:
+                dur = all_timing_records.get((idx2, dataset)) if all_timing_records else None
+                if dur is not None:
+                    f.write(f"    {dataset}: {dur:.2f} sec\n")
     logging.info(f"[Rank 0] Saved sequence description log to {text_log_path}")
 
-else:
-    worker_loop(comm)
 
-"""----------------------------------------------------------------------------------------------------------------------"""
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"""
+----------------------------------------------------------
+"""
+
+
+# === Rank 0 saves the index file and description log ===
+comm.Barrier()
+if rank == 0:
+    index_df = pd.DataFrame(index_records)
+    index_df_path = os.path.join(base_output_root, "imputation_sequence_index.csv")
+    index_df.to_csv(index_df_path, index=False)
+    logging.info(f"[Rank 0] Saved index file: {index_df_path}")
+
+    # Save human-readable sequence description log
+    text_log_path = os.path.join(base_output_root, "sequence_description.txt")
+    with open(text_log_path, "w", encoding="utf-8") as f:
+        for idx, record in enumerate(index_records):
+            f.write(f"{record['sequence_id']}: {record['methods']}\n")
+            # Append timing info per dataset if available
+            for dataset in datasets:
+                duration = timing_records.get((idx, dataset))
+                if duration is not None:
+                    f.write(f"    {dataset}: {duration:.2f} sec\n")
+    logging.info(f"[Rank 0] Saved sequence description log to {text_log_path}")
+
+
+
+
+"""
+----------------------------------------------------------
+"""
