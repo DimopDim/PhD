@@ -1096,33 +1096,33 @@ def build_sequences():
     group_A =  ["knn"] #["knn"] #["knn", "median", "mean"] #5 #1
     group_B =  ["knn"] #["knn"] #["knn", "median", "mean"] #5 #2
     group_C =  ["knn"] #["knn"] #["knn", "median", "mean"] #5 #3
-    group_D =  ["mean"] #["iterative_function"] #["knn", "median", "mean"] #5 #4
-    group_E =  ["mean"] #["iterative_function"] #["knn", "median", "mean"] #5 #5
-    group_F =  ["mean"] #["iterative_function"] #["knn", "median", "mean"] #5 #6
+    group_D =  ["iterative_function"] #["knn", "median", "mean"] #5 #4
+    group_E =  ["iterative_function"] #["knn", "median", "mean"] #5 #5
+    group_F =  ["iterative_function"] #["knn", "median", "mean"] #5 #6
     
     #------------------------30%------------------------------
     # Bertsimas et al., 2018 (data-driven MICE with tree-based models); Lin et al., 2020 (XGBoost outperforms for ICU datasets).
     
-    group_G = ["mean"] #["iterative_function"] #["iterative_function", "xgboost"] #5 #7
-    group_H = ["mean"] #["xgboost"] #["xgboost", "iterative_function"] #5 #8 
-    group_I = ["mean"] #["xgboost"] #["xgboost", "iterative_function"] #5 #9
-    group_J = ["mean"] #["xgboost"] #["xgboost", "iterative_function"] #5 #10
-    group_K = ["mean"] #["xgboost"] #["xgboost", "iterative_function"] #5 #11
-    group_L = ["mean"] #["xgboost"] #["xgboost", "iterative_function"] #5 #12
+    group_G = ["iterative_function"] #["iterative_function", "xgboost"] #5 #7
+    group_H = ["xgboost"] #["xgboost", "iterative_function"] #5 #8 
+    group_I = ["xgboost"] #["xgboost", "iterative_function"] #5 #9
+    group_J = ["xgboost"] #["xgboost", "iterative_function"] #5 #10
+    group_K = ["xgboost"] #["xgboost", "iterative_function"] #5 #11
+    group_L = ["xgboost"] #["xgboost", "iterative_function"] #5 #12
    
     #------------------------60%------------------------------
     # Yoon et al., 2019 (BRITS), Cao et al., 2018 (GRU-D).
     
-    group_M = ["median"] #["lstm"] #["lstm", "rnn" ] #5 #13
-    group_N = ["median"] #["lstm"] #["lstm", "rnn"] #5 #14
-    group_O = ["median", "mean"] #["lstm"] #["lstm", "rnn"] #5 #15
-    group_P = ["median", "mean"] #["gan"] #["lstm", "rnn"] #5 #16
+    group_M = ["lstm", "rnn" ] #5 #13
+    group_N = ["lstm", "rnn"] #5 #14
+    group_O = ["lstm", "rnn"] #5 #15
+    group_P = ["lstm", "rnn"] #5 #16
     
     #------------------------80%------------------------------
     # Yoon et al., 2018 (GAIN); Luo et al., 2020.
     
-    group_Q = ["mean"] #["gan", "rnn"] #10 #17
-    group_R = ["median"] #["gan", "rnn"] #10 #18
+    group_Q = ["gan", "rnn"] #10 #17
+    group_R = ["gan", "rnn"] #10 #18
     
     #------------------------60%------------------------------
 
