@@ -30,4 +30,28 @@ It was developed for large ICU datasets (e.g., **MIMIC-IV**, **eICU**) where mis
 
 
 - **Run with MPI:**
+
 mpirun -np 8 python mpi_groups_thresholds.py
+
+
+---
+
+**Method Selection Strategy**
+
+0–30% missingness → KNN, Mean/Median
+
+30–60% missingness → Iterative / XGBoost
+
+60–80% missingness → LSTM / GRU
+
+80–100% missingness → GAN (GAIN)
+
+
+---
+
+
+Developed by Dimitrios Dimopoulos
+
+PhD Candidate — University of the Aegean
+
+Research Focus: AI in Medical Data, Missing Value Imputation, Predictive Modeling
