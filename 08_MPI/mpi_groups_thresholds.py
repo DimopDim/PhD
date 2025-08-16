@@ -50,6 +50,11 @@ import glob
 import time
 import logging
 import copy
+import errno
+import gc
+import contextlib
+import re
+
 
 # ---- Third-party ----
 from mpi4py import MPI
@@ -70,12 +75,47 @@ from xgboost import XGBRegressor
 from sklearn.experimental import enable_iterative_imputer  # noqa: F401 (enables IterativeImputer)
 from sklearn.impute import SimpleImputer, KNNImputer, IterativeImputer
 from sklearn.linear_model import BayesianRidge, Ridge
-from sklearn.ensemble import ExtraTreesRegressor
+from sklearn.ensemble import ExtraTreesRegressor, HistGradientBoostingRegressor
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.utils.validation import check_is_fitted
 
+from collections import defaultdict
+
 # Quiet absl logs that TF emits
 logging.getLogger('absl').setLevel(logging.ERROR)
+
+
+"""
+----------------------------------------------------------
+"""
+
+@contextlib.contextmanager
+def file_lock(path):
+    """
+    Atomic file lock using O_EXCL. Yields True if acquired, False if not.
+    Lock is released by deleting the file on exit.
+    """
+    got = False
+    try:
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.close(fd)
+        got = True
+        yield True
+    except FileExistsError:
+        yield False
+    except OSError as e:
+        if e.errno == errno.EEXIST:
+            yield False
+        else:
+            raise
+    finally:
+        if got and os.path.exists(path):
+            try:
+                os.remove(path)
+            except Exception:
+                pass
+
+
 
 
 """
@@ -812,40 +852,7 @@ def hierarchical_impute_dynamic(
     return (imputed_df, method_log) if return_method_log else imputed_df
 
 
-    if imputed_df.isnull().values.any():
-        raise ValueError("NaNs remain after hierarchical imputation!")
 
-    # === Plot ===
-    output_dir = "figures/CIR-16"
-    os.makedirs(output_dir, exist_ok=True)
-
-    unique_methods = list(set(method_names_actual))
-    palette = sns.color_palette("tab10", n_colors=len(unique_methods))
-    method_color_map = {method: palette[i] for i, method in enumerate(unique_methods)}
-    colors = [method_color_map[m] for m in method_names_actual]
-
-    plt.figure(figsize=(10, 10))
-    plt.barh(
-        y=range(1, len(cumulative_rows) + 1),
-        width=cumulative_rows,
-        color=colors,
-        edgecolor='black'
-    )
-    plt.yticks(ticks=range(1, len(group_names) + 1), labels=group_names)
-    plt.title(f"Cumulative Rows Used for Imputation by Group - {dataset_name}", fontsize=14, fontweight='bold')
-    plt.ylabel("Missingness Range", fontsize=12)
-    plt.xlabel("Cumulative Rows Used", fontsize=12)
-    plt.grid(True, axis='x', linestyle='--', alpha=0.6)
-
-    legend_handles = [Patch(color=color, label=method) for method, color in method_color_map.items()]
-    plt.legend(handles=legend_handles, title="Imputation Method", loc="lower right")
-    plt.tight_layout()
-
-    filename = f"seq_{plot_id:02d}_{dataset_name}_cumulative_imputation_rows.png" if dataset_name and plot_id is not None else f"{dataset_name}_cumulative_imputation_rows.png"
-    plt.savefig(os.path.join(output_dir, filename), dpi=300)
-    plt.close()
-
-    return (imputed_df, method_log) if return_method_log else imputed_df
 
 
 
@@ -883,7 +890,7 @@ methods_all = ["mean", "median", "knn", "iterative_simple", "iterative_function"
 
 # Define all datasets
 datasets = [
-    "o1_X_test", "o1_X_validate"
+    "o1_X_test", "o1_X_validate", "o1_X_train"
     #"o1_X_train", "o1_X_validate", "o1_X_test", "o1_X_external",
     #"o2_X_train", "o2_X_validate", "o2_X_test", "o2_X_external",
     #"o3_X_train", "o3_X_validate", "o3_X_test", "o3_X_external",
@@ -904,36 +911,36 @@ def build_sequences():
     #------------------------0%------------------------------
     # Jerez et al., 2010; Batista & Monard, 2003; Che et al., 2018.
     
-    group_A =  ["knn"] #["knn"] #["knn", "median", "mean"] #5
-    group_B =  ["knn"] #["knn"] #["knn", "median", "mean"] #5
-    group_C =  ["knn"] #["knn"] #["knn", "median", "mean"] #5
-    group_D =  ["knn"] #["iterative_function"] #["knn", "median", "mean"] #5
-    group_E =  ["knn"] #["iterative_function"] #["knn", "median", "mean"] #5
-    group_F =  ["knn"] #["iterative_function"] #["knn", "median", "mean"] #5
+    group_A =  ["knn"] #["knn"] #["knn", "median", "mean"] #5 #1
+    group_B =  ["knn"] #["knn"] #["knn", "median", "mean"] #5 #2
+    group_C =  ["knn"] #["knn"] #["knn", "median", "mean"] #5 #3
+    group_D =  ["knn"] #["iterative_function"] #["knn", "median", "mean"] #5 #4
+    group_E =  ["knn"] #["iterative_function"] #["knn", "median", "mean"] #5 #5
+    group_F =  ["knn"] #["iterative_function"] #["knn", "median", "mean"] #5 #6
     
     #------------------------30%------------------------------
     # Bertsimas et al., 2018 (data-driven MICE with tree-based models); Lin et al., 2020 (XGBoost outperforms for ICU datasets).
     
-    group_G = ["mean"] #["iterative_function"] #["iterative_function", "xgboost"] #5
-    group_H = ["mean"] #["xgboost"] #["xgboost", "iterative_function"] #5
-    group_I = ["mean"] #["xgboost"] #["xgboost", "iterative_function"] #5
-    group_J = ["mean"] #["xgboost"] #["xgboost", "iterative_function"] #5
-    group_K = ["mean"] #["xgboost"] #["xgboost", "iterative_function"] #5
-    group_L = ["mean"] #["xgboost"] #["xgboost", "iterative_function"] #5
-    
+    group_G = ["mean"] #["iterative_function"] #["iterative_function", "xgboost"] #5 #7
+    group_H = ["mean"] #["xgboost"] #["xgboost", "iterative_function"] #5 #8 
+    group_I = ["mean"] #["xgboost"] #["xgboost", "iterative_function"] #5 #9
+    group_J = ["mean"] #["xgboost"] #["xgboost", "iterative_function"] #5 #10
+    group_K = ["mean"] #["xgboost"] #["xgboost", "iterative_function"] #5 #11
+    group_L = ["mean"] #["xgboost"] #["xgboost", "iterative_function"] #5 #12
+   
     #------------------------60%------------------------------
     # Yoon et al., 2019 (BRITS), Cao et al., 2018 (GRU-D).
     
-    group_M = ["median"] #["lstm"] #["lstm", "rnn" ] #5
-    group_N = ["median"] #["lstm"] #["lstm", "rnn"] #5
-    group_O = ["median"] #["lstm"] #["lstm", "rnn"] #5
-    group_P = ["median"] #["gan"] #["lstm", "rnn"] #5
+    group_M = ["median"] #["lstm"] #["lstm", "rnn" ] #5 #13
+    group_N = ["median"] #["lstm"] #["lstm", "rnn"] #5 #14
+    group_O = ["median", "mean"] #["lstm"] #["lstm", "rnn"] #5 #15
+    group_P = ["median", "mean"] #["gan"] #["lstm", "rnn"] #5 #16
     
     #------------------------80%------------------------------
     # Yoon et al., 2018 (GAIN); Luo et al., 2020.
     
-    group_Q = ["gan"] #["gan", "rnn"] #10
-    group_R = ["gan"] #["gan", "rnn"] #10
+    group_Q = ["gan"] #["gan", "rnn"] #10 #17
+    group_R = ["gan"] #["gan", "rnn"] #10 #18
     
     #------------------------60%------------------------------
 
@@ -1062,6 +1069,8 @@ def _load_dataset_by_name(name: str) -> pd.DataFrame:
     return df
 
 
+# ------------------------------
+
 
 def _job_already_done(dataset_name: str, method_names: list, idx: int) -> bool:
     """Check if any rank already produced output for (sequence idx, dataset)."""
@@ -1073,16 +1082,40 @@ def _job_already_done(dataset_name: str, method_names: list, idx: int) -> bool:
     existing_files = glob.glob(imputed_path_pattern)
     return len(existing_files) > 0
 
+
+# ------------------------------
+
+
+def _claim_job(idx: int, dataset_name: str, method_names: list) -> bool:
+    """
+    Returns True if this rank successfully claims the job; False if someone else already did.
+    """
+    method_sequence_str = "_".join(method_names)
+    folder_name = f"seq_{idx:02d}_{method_sequence_str}"
+    subfolder_path = os.path.join(base_output_root, folder_name)
+    os.makedirs(subfolder_path, exist_ok=True)
+
+    lock_path = os.path.join(subfolder_path, f"{dataset_name}.lock")
+    with file_lock(lock_path) as acquired:
+        return acquired
+
+
+# ------------------------------
+
+
 def _do_one_job_locally(job):
-    """Execute one job (used by workers and also by rank 0 in single-rank fallback)."""
     idx = job["idx"]
     dataset_name = job["dataset_name"]
     thresholds = job["thresholds"]
     method_names = job["method_names"]
 
-    # Skip if already done
     if _job_already_done(dataset_name, method_names, idx):
         logging.info(f"[Rank {rank}] Skipping sequence #{idx:02d} on {dataset_name} — existing outputs found.")
+        return {"idx": idx, "dataset": dataset_name, "duration": 0.0, "skipped": True}
+
+    # NEW: claim the job atomically
+    if not _claim_job(idx, dataset_name, method_names):
+        logging.info(f"[Rank {rank}] Another rank claimed #{idx:02d} / {dataset_name}. Skipping.")
         return {"idx": idx, "dataset": dataset_name, "duration": 0.0, "skipped": True}
 
     method_sequence_str = "_".join(method_names)
@@ -1122,11 +1155,23 @@ def _do_one_job_locally(job):
 
         logging.info(f"[Rank {rank}] Saved: {imputed_path}")
 
+        # free memory between big jobs
+        del imputed_df, method_log
+        gc.collect()
+        try:
+            tf.keras.backend.clear_session()
+        except Exception:
+            pass
+
         return {"idx": idx, "dataset": dataset_name, "duration": duration}
 
     except Exception as e:
         logging.exception(f"[Rank {rank}] ❌ Exception during step #{idx} on {dataset_name}")
         return {"idx": idx, "dataset": dataset_name, "duration": 0.0, "error": str(e)}
+
+
+# ------------------------------
+
 
 def _master_loop(all_jobs):
     """Rank 0: dispatch jobs to workers that announce READY. Collect timing & errors."""
@@ -1191,6 +1236,10 @@ def _master_loop(all_jobs):
     logging.info(f"[Rank 0] Master finished: collected {len(results)} results.")
     return results
 
+
+# ------------------------------
+
+
 def _worker_loop():
     """Ranks 1..N: announce READY, receive JOBs, run, send RESULT, repeat until STOP."""
     while True:
@@ -1209,9 +1258,12 @@ def _worker_loop():
             # Unexpected message/tag
             comm.send(f"Unexpected tag {tag}", dest=0, tag=TAG_ERROR)
 
+
 # ------------------------------
 # Build the job list from work_items
 # ------------------------------
+
+
 all_jobs = []
 for idx, _, dataset_name, thresholds, method_names in work_items:
     all_jobs.append({
@@ -1221,9 +1273,12 @@ for idx, _, dataset_name, thresholds, method_names in work_items:
         "method_names": method_names,
     })
 
+
 # ------------------------------
 # Run the farm
 # ------------------------------
+
+
 if rank == 0:
     results = _master_loop(all_jobs)
     # Prepare timing map for later logging
@@ -1243,44 +1298,80 @@ else:
 
 comm.Barrier()
 
+
+# ------------------------------
 # === Rank 0 saves the index file and description log ===
-if rank == 0:
-    index_df = pd.DataFrame(index_records)
-    index_df_path = os.path.join(base_output_root, "imputation_sequence_index.csv")
-    index_df.to_csv(index_df_path, index=False)
-    logging.info(f"[Rank 0] Saved index file: {index_df_path}")
-
-    # Save human-readable sequence description log
-    text_log_path = os.path.join(base_output_root, "sequence_description.txt")
-    with open(text_log_path, "w", encoding="utf-8") as f:
-        for idx2, record in enumerate(index_records):
-            f.write(f"{record['sequence_id']}: {record['methods']}\n")
-            for dataset in datasets:
-                dur = all_timing_records.get((idx2, dataset)) if all_timing_records else None
-                if dur is not None:
-                    f.write(f"    {dataset}: {dur:.2f} sec\n")
-    logging.info(f"[Rank 0] Saved sequence description log to {text_log_path}")
+# ------------------------------
 
 
+#if rank == 0:
+#    index_df = pd.DataFrame(index_records)
+#    index_df_path = os.path.join(base_output_root, "imputation_sequence_index.csv")
+#    index_df.to_csv(index_df_path, index=False)
+#    logging.info(f"[Rank 0] Saved index file: {index_df_path}")
+#
+#    # Save human-readable sequence description log
+#    text_log_path = os.path.join(base_output_root, "sequence_description.txt")
+#    with open(text_log_path, "w", encoding="utf-8") as f:
+#        for idx2, record in enumerate(index_records):
+#            f.write(f"{record['sequence_id']}: {record['methods']}\n")
+#            for dataset in datasets:
+#                dur = all_timing_records.get((idx2, dataset)) if all_timing_records else None
+#                if dur is not None:
+#                    f.write(f"    {dataset}: {dur:.2f} sec\n")
+#    logging.info(f"[Rank 0] Saved sequence description log to {text_log_path}")
 
 
+# ------------------------------
 
 
+def _finalize_outputs(base_dir: str, datasets_local: list, work_items_local: list):
+    """
+    Rank-0: For each (sequence, dataset), pick the produced _rank*.csv,
+    run final QA, and write a canonical {dataset}.csv next to them.
+    """
+    by_seq = {}
+    for idx, _, dataset_name, thresholds, method_names in work_items_local:
+        key = (idx, "_".join(method_names))
+        by_seq.setdefault(key, set()).add(dataset_name)
 
+    for (idx, seq_str), dsets in by_seq.items():
+        seq_folder = f"seq_{idx:02d}_{seq_str}"
+        seq_path = os.path.join(base_dir, seq_folder)
+        if not os.path.isdir(seq_path):
+            continue
 
+        for dataset_name in sorted(dsets):
+            # any rank output
+            cand = sorted(glob.glob(os.path.join(seq_path, f"{dataset_name}_rank*.csv")))
+            if not cand:
+                logging.warning(f"[Rank 0] No outputs found for {seq_folder}/{dataset_name}")
+                continue
 
+            # choose the largest file (most rows/bytes) as best
+            best = max(cand, key=lambda p: os.path.getsize(p))
+            try:
+                df = pd.read_csv(best)
+                # sanity checks
+                nan_ct = int(np.isnan(df.values).sum())
+                if nan_ct > 0:
+                    logging.warning(f"[Rank 0] {seq_folder}/{dataset_name}: {nan_ct} NaNs remain. Keeping anyway for traceability.")
 
+                # write canonical file
+                final_path = os.path.join(seq_path, f"{dataset_name}.csv")
+                df.to_csv(final_path, index=False)
 
+                # light QA report
+                qa_path = os.path.join(seq_path, f"{dataset_name}_QA.txt")
+                with open(qa_path, "w", encoding="utf-8") as f:
+                    f.write(f"Sequence: {seq_folder}\nDataset: {dataset_name}\n")
+                    f.write(f"Rows, Cols: {df.shape[0]}, {df.shape[1]}\n")
+                    f.write(f"Total NaNs: {nan_ct}\n")
+                    f.write(f"Source file: {os.path.basename(best)}\n")
 
-
-
-
-
-
-
-
-
-
+                logging.info(f"[Rank 0] Finalized {seq_folder}/{dataset_name} → {os.path.basename(final_path)}")
+            except Exception:
+                logging.exception(f"[Rank 0] Finalize failed for {seq_folder}/{dataset_name}")
 
 
 
@@ -1291,24 +1382,52 @@ if rank == 0:
 
 
 # === Rank 0 saves the index file and description log ===
+
+
+def _extract_seq_idx(sequence_id: str):
+    # Accepts 'seq_000_knn_...'; returns int 0
+    m = re.match(r"seq_(\d+)_", sequence_id)
+    return int(m.group(1)) if m else None
+
 comm.Barrier()
 if rank == 0:
+    # 1) Save the flat index CSV
     index_df = pd.DataFrame(index_records)
     index_df_path = os.path.join(base_output_root, "imputation_sequence_index.csv")
     index_df.to_csv(index_df_path, index=False)
     logging.info(f"[Rank 0] Saved index file: {index_df_path}")
 
-    # Save human-readable sequence description log
+    # 2) Group records by sequence_id for a cleaner text log
+    by_seq = defaultdict(list)
+    for rec in index_records:
+        by_seq[rec["sequence_id"]].append(rec)
+
+    # Choose which timing map we actually have
+    timings = all_timing_records if 'all_timing_records' in globals() and all_timing_records else {}
+
+    # 3) Human-readable description
     text_log_path = os.path.join(base_output_root, "sequence_description.txt")
     with open(text_log_path, "w", encoding="utf-8") as f:
-        for idx, record in enumerate(index_records):
-            f.write(f"{record['sequence_id']}: {record['methods']}\n")
-            # Append timing info per dataset if available
-            for dataset in datasets:
-                duration = timing_records.get((idx, dataset))
-                if duration is not None:
-                    f.write(f"    {dataset}: {duration:.2f} sec\n")
+        for sequence_id, recs in sorted(by_seq.items()):
+            # Header line: sequence_id and its method string (all recs share the same methods)
+            methods_line = recs[0]["methods"] if "methods" in recs[0] else ""
+            f.write(f"{sequence_id}: {methods_line}\n")
+
+            # Determine the numeric sequence index for timing lookups
+            seq_idx = recs[0].get("seq_idx", None)
+            if seq_idx is None:
+                seq_idx = _extract_seq_idx(sequence_id)
+
+            # Append dataset timing lines if available
+            for rec in recs:
+                ds = rec.get("dataset")
+                if ds is None:
+                    continue
+                dur = timings.get((seq_idx, ds)) if seq_idx is not None else None
+                if dur is not None:
+                    f.write(f"    {ds}: {dur:.2f} sec\n")
     logging.info(f"[Rank 0] Saved sequence description log to {text_log_path}")
+
 
 
 
