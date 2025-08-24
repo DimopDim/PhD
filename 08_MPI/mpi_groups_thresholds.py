@@ -1072,7 +1072,7 @@ methods_all = ["mean", "median", "knn", "iterative_simple", "iterative_function"
 
 # Define all datasets
 datasets = [
-    "o1_X_test", "o1_X_validate", "o1_X_train"
+    "o1_X_train"
     #"o1_X_train", "o1_X_validate", "o1_X_test", "o1_X_external",
     #"o2_X_train", "o2_X_validate", "o2_X_test", "o2_X_external",
     #"o3_X_train", "o3_X_validate", "o3_X_test", "o3_X_external",
@@ -1090,50 +1090,71 @@ import itertools
 
 def build_sequences():
     
-    #------------------------0%------------------------------
-    # Jerez et al., 2010; Batista & Monard, 2003; Che et al., 2018.
+    #--------------------------0%----------------------------------#
+    # Jerez, J. M., et al. (2010). "Missing data imputation        #
+    # using statistical and machine learning methods in a real     #
+    # breast cancer problem." Artificial Intelligence in Medicine, #
+    # 50(2), 105–115.                                              #
+    #--------------------------------------------------------------#
+    # Batista, G. E., & Monard, M. C. (2003). "An analysis of four #
+    # missing data treatment methods for supervised learning."     #
+    # Applied Artificial Intelligence, 17(5–6), 519–533.           #
+    #--------------------------------------------------------------#
     
-    group_A =  ["knn"] #["knn"] #["knn", "median", "mean"] #5 #1
-    group_B =  ["knn"] #["knn"] #["knn", "median", "mean"] #5 #2
-    group_C =  ["knn"] #["knn"] #["knn", "median", "mean"] #5 #3
-    group_D =  ["iterative_function"] #["knn", "median", "mean"] #5 #4
-    group_E =  ["iterative_function"] #["knn", "median", "mean"] #5 #5
-    group_F =  ["iterative_function"] #["knn", "median", "mean"] #5 #6
+    group_A =  ["knn", "median", "mean"] #["knn"] #5% #1
+    group_B =  ["knn", "median", "mean"] #["knn"] #5% #2
+    group_C =  ["knn", "median", "mean"] #["knn"] #5% #3
+    group_D =  ["iterative_function", "knn"] #["iterative_function"] #5% #4
     
-    #------------------------30%------------------------------
-    # Bertsimas et al., 2018 (data-driven MICE with tree-based models); Lin et al., 2020 (XGBoost outperforms for ICU datasets).
+    #-------------------------20%----------------------------------#
+    # Bertsimas, D., et al. (2018). "From predictive methods to    #
+    # missing data imputation: an optimization approach." Journal  #
+    # of Machine Learning Research, 18(196), 1–39.                 #
+    #--------------------------------------------------------------#
+    # Lin, C., et al. (2020). "An empirical study of machine       #
+    # learning models for predicting outcomes of ICU patients. "BMC#
+    # Medical Informatics and Decision Making, 20, 295.            #
+    #--------------------------------------------------------------#
     
-    group_G = ["iterative_function"] #["iterative_function", "xgboost"] #5 #7
-    group_H = ["xgboost"] #["xgboost", "iterative_function"] #5 #8 
-    group_I = ["xgboost"] #["xgboost", "iterative_function"] #5 #9
-    group_J = ["xgboost"] #["xgboost", "iterative_function"] #5 #10
-    group_K = ["xgboost"] #["xgboost", "iterative_function"] #5 #11
-    group_L = ["xgboost"] #["xgboost", "iterative_function"] #5 #12
+    group_E = ["xgboost", "iterative_function"] #["iterative_function"] #10 #5
+    group_F = ["xgboost", "iterative_function"] #["xgboost"] #10% #6
+    group_G = ["xgboost", "iterative_function"] #["xgboost"] #10% #7
    
-    #------------------------60%------------------------------
-    # Yoon et al., 2019 (BRITS), Cao et al., 2018 (GRU-D).
+    #-------------------------60%----------------------------------#
+    # Yoon, J., Zame, W., & van der Schaar, M. (2019). "Estimating #
+    # missing data in temporal data streams using multi-directional#
+    # recurrent neural networks." IEEE Transactions on Biomedical  #
+    # Engineering, 66(5), 1477–1490. (BRITS)                       #
+    #--------------------------------------------------------------#
+    # Cao, W., et al. (2018). "BRITS: Bidirectional recurrent      #
+    # imputation for time series." NeurIPS. GRU-D, temporal models #
+    #--------------------------------------------------------------#
     
-    group_M = ["lstm", "rnn" ] #5 #13
-    group_N = ["lstm", "rnn"] #5 #14
-    group_O = ["lstm", "rnn"] #5 #15
-    group_P = ["lstm", "rnn"] #5 #16
+    group_H = ["lstm", "rnn"] #15% #8
+    group_I = ["lstm", "rnn"] #15% #9
     
-    #------------------------80%------------------------------
-    # Yoon et al., 2018 (GAIN); Luo et al., 2020.
+    #-------------------------80%----------------------------------#
+    # Yoon, J., Jordon, J., & van der Schaar, M. (2018). "GAIN:    #
+    # Missing data imputation using generative adversarial nets.   #
+    # "International Conference on Machine Learning (ICML).        #
+    #--------------------------------------------------------------#
+    # Luo, Y., et al. (2020). "Handling missing data in machine    #
+    # learning: a review." IEEE Transactions on Knowledge and Data #
+    # Engineering.                                                 #
+    #--------------------------------------------------------------#
     
-    group_Q = ["gan", "rnn"] #10 #17
-    group_R = ["gan", "rnn"] #10 #18
+    group_J = ["gan"] #20% #10
     
-    #------------------------60%------------------------------
+    #-------------------------100%---------------------------------#
 
-    thresholds = [0.05]*16 + [0.10]*2  # groups = 100%
+    thresholds = [0.05]*4 + [0.10]*3 + [0.15]*2 + [0.20] # groups = 100%
     work_items = []
     index_records = []
 
     idx = 0
-    for a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r in itertools.product(group_A, group_B, group_C, group_D, group_E, group_F, group_G, group_H, group_I, group_J, group_K, group_L, group_M, group_N, group_O, group_P, group_Q, group_R):
-        method_names = [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r]
-        folder_name = f"seq_{idx:03d}_{a}_{b}_{c}_{d}_{e}_{f}_{g}_{h}_{i}_{j}_{k}_{l}_{m}_{n}_{o}_{p}_{q}_{r}"
+    for a, b, c, d, e, f, g, h, i, j in itertools.product(group_A, group_B, group_C, group_D, group_E, group_F, group_G, group_H, group_I, group_J):
+        method_names = [a, b, c, d, e, f, g, h, i, j]
+        folder_name = f"seq_{idx:03d}_{a}_{b}_{c}_{d}_{e}_{f}_{g}_{h}_{i}_{j}"
 
         for dataset in datasets:  # use datasets from global scope
             work_items.append((idx, folder_name, dataset, thresholds, method_names))
