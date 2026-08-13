@@ -1,0 +1,51 @@
+[data]
+# One row per admission/window. All 16 rows of an admission must share group_id and target.
+mimic_path = "CSV/exports/final/mimic_mean_median_min_max_final.csv"
+eicu_path = "CSV/exports/final/eicu_mean_median_min_max_final.csv"
+target_column = "los"
+# Split by patient to prevent the same person appearing in multiple MIMIC subsets.
+split_group_columns = ["subject_id"]
+# Sequence/admission key: identifies the 16 windows belonging to one ICU admission.
+sequence_group_columns = ["subject_id", "hadm_id"]
+external_sequence_group_columns = ["subject_id", "hadm_id"]
+window_order_column = "Time_Zone"
+stratify_column = "hospital_expire_flag"
+expected_windows_per_admission = 16
+max_los_inclusive = 10.0
+expected_mimic_admissions = 3190
+expected_eicu_admissions = 4886
+
+# Never used as predictors. Add every identifier, outcome, or post-outcome field here.
+exclude_columns = [
+  "subject_id", "hadm_id", "stay_id", "patientunitstayid",
+  "row_count", "Time_Zone",
+  "los", "hospital_expire_flag", "window_index",
+  "window_start_hour", "window_end_hour", "window_label"
+]
+
+# Optional explicit feature list. Leave empty to use the exact common columns after exclusions.
+feature_columns = []
+
+[split]
+train_fraction = 0.80
+validation_fraction = 0.10
+test_fraction = 0.10
+seed = 42
+
+[experiment]
+output_dir = "/home/ddimopoulos/01_simple_imputation/outputs/leakage_safe_mpi_seed42"
+search_iterations = 50
+bayesian_folds = 3
+threads_per_rank = 4
+device = "cpu"
+bootstrap_iterations = 1000
+resume = true
+
+[imputation]
+iterative_max_iter = 20
+iterative_trees = 10
+neural_epochs = 50
+neural_batch_size = 32
+neural_patience = 5
+neural_validation_fraction = 0.10
+neural_corruption_fraction = 0.20

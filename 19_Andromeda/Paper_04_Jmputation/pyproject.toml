@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "leakage-safe-los-mpi"
+version = "1.0.4"
+description = "Leakage-safe MPI evaluation of 48 MIMIC-IV to eICU ICU LOS configurations"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=1.26,<3",
+  "pandas>=2.1,<3",
+  "scikit-learn>=1.4,<2",
+  "xgboost>=2.0,<4",
+  "mpi4py>=3.1,<5",
+  "scipy>=1.11,<2",
+  "joblib>=1.3,<2",
+  "matplotlib>=3.8,<4",
+  "seaborn>=0.13,<1",
+  "pyarrow>=14,<22",
+  "scikit-optimize>=0.10,<1",
+  "hyperopt>=0.2.7,<1",
+  "torch>=2.2,<3",
+  "shap>=0.45,<1",
+]
+
+[project.scripts]
+los-mpi = "los_mpi.run_mpi:main"
+los-analyze = "los_mpi.analyze:main"
+
+[tool.setuptools.packages.find]
+include = ["los_mpi*"]
+
