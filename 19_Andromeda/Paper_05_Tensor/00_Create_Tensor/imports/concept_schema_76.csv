@@ -1,0 +1,77 @@
+concept_order,canonical_concept,target_unit,time_varying
+1,Base Excess,mEq/L,True
+2,Lactate,mmol/L,True
+3,pCO2,mmHg,True
+4,Calculated Total CO2,mEq/L,True
+5,BUN,mg/dL,True
+6,pH,,True
+7,pO2,mmHg,True
+8,Alanine Aminotransferase (ALT),IU/L,True
+9,Alkaline Phosphatase,IU/L,True
+10,Anion Gap,mEq/L,True
+11,Aspartate Aminotransferase (AST),IU/L,True
+12,Bicarbonate,mEq/L,True
+13,Chloride,mEq/L,True
+14,Creatinine,mg/dL,True
+15,Glucose,mg/dL,True
+16,Magnesium,mg/dL,True
+17,Phosphate,mg/dL,True
+18,Potassium,mEq/L,True
+19,Sodium,mEq/L,True
+20,Hematocrit,%,True
+21,Hemoglobin,g/dL,True
+22,INR(PT),ratio,True
+23,MCH,pg,True
+24,MCHC,g/dL,True
+25,MCV,fL,True
+26,Platelet Count,K/uL,True
+27,PT,sec,True
+28,PTT,sec,True
+29,RDW,%,True
+30,Red Blood Cells,M/uL,True
+31,White Blood Cells,K/uL,True
+32,Heart Rate (bpm),bpm,True
+33,Non-Invasive Blood Pressure diastolic (mmHg),mmHg,True
+34,Non-Invasive Blood Pressure systolic (mmHg),mmHg,True
+35,Non-Invasive Blood Pressure mean (mmHg),mmHg,True
+36,Respiratory Rate (insp/min),insp/min,True
+37,O2 saturation pulse oximetry (%),%,True
+38,Calcium non-ionized,mg/dL,True
+39,CK (CPK),IU/L,True
+40,Temperature Fahrenheit (F),°F,True
+41,Pain Level,score,True
+42,O2 Flow (L/min),L/min,True
+43,Inspired O2 Fraction,%,True
+44,Ionized Calcium,mmol/L,True
+45,Albumin,g/dL,True
+46,GCS,score,True
+47,Total Bilirubin,mg/dL,True
+48,LDH,IU/L,True
+49,ETOH,source-specific,True
+50,Arterial Blood Pressure systolic (mmHg),mmHg,True
+51,Arterial Blood Pressure diastolic (mmHg),mmHg,True
+52,Arterial Blood Pressure mean (mmHg),mmHg,True
+53,Serum Osmolality,mOsm/kg,True
+54,Troponin-T,ng/mL,True
+55,Uric Acid,mg/dL,True
+56,Ammonia,umol/L,True
+57,C Reactive Protein (CRP),mg/L,True
+58,Fibrinogen,mg/dL,True
+59,Pulmonary Artery Pressure systolic (mmHg),mmHg,True
+60,Pulmonary Artery Pressure diastolic (mmHg),mmHg,True
+61,Pulmonary Artery Pressure mean (mmHg),mmHg,True
+62,Glucose finger stick (range 70-100),mg/dL,True
+63,Reticulocyte Count Automated,%,True
+64,Differential-Basos,%,True
+65,Differential-Eos,%,True
+66,Differential-Lymphs,%,True
+67,Differential-Monos,%,True
+68,Differential-Neuts,%,True
+69,Haptoglobin,mg/dL,True
+70,Bilirubin Direct,mg/dL,True
+71,Thyroxine (T4) Free,ng/dL,True
+72,Sedimentation Rate,mm/hr,True
+73,CK-MB,ng/mL,True
+74,Amylase,IU/L,True
+75,PEEP set (cmH2O),cmH2O,True
+76,Central Venous Pressure (mmHg),mmHg,True
