@@ -1,7 +1,6 @@
 package com.example.museumemotionapp.screens
 
 import android.content.Context
-import android.os.Environment
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,13 +16,18 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.museumemotionapp.LocalFontScale
 import com.example.museumemotionapp.models.panasQuestions
+import com.example.museumemotionapp.utils.getUserFolder   // ✅ Χρήση app-specific storage helper
 import java.io.File
 
 @Composable
 fun PanasScreenBegin(username: String, navController: NavController) {
     val context = LocalContext.current
     val scale = LocalFontScale.current.scale
-    val answers = remember { mutableStateListOf<Int?>().apply { repeat(panasQuestions.size) { add(null) } } }
+    val answers = remember {
+        mutableStateListOf<Int?>().apply {
+            repeat(panasQuestions.size) { add(null) }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -33,21 +37,24 @@ fun PanasScreenBegin(username: String, navController: NavController) {
         Column(modifier = Modifier.fillMaxSize()) {
             Text(
                 text = "Ερωτηματολόγιο 3: PANAS – Κλίμακα θετικών και αρνητικών επιδράσεων",
-                style = MaterialTheme.typography.titleLarge
+                style = MaterialTheme.typography.titleLarge,
+                fontSize = 20.sp * scale
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Καταγράψτε το πώς νιώσατε την περασμένη εβδομάδα…",
-                style = MaterialTheme.typography.bodyLarge
+                text = "Καταγράψτε το πώς νιώθετε αυτή τη στιγμή, πριν την εμπειρία στο μουσείο.",
+                style = MaterialTheme.typography.bodyLarge,
+                fontSize = 16.sp * scale
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
                 text = "Παρακαλώ, επιλέξτε έναν αριθμό από 1 (Πολύ ελαφρά ή καθόλου) έως 5 (Επαρκώς)",
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium,
+                fontSize = 14.sp * scale
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -77,7 +84,7 @@ fun PanasScreenBegin(username: String, navController: NavController) {
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Αποθήκευση Απαντήσεων")
+                        Text("Αποθήκευση Απαντήσεων", fontSize = 16.sp * scale)
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -97,13 +104,24 @@ fun PanasScreenBegin(username: String, navController: NavController) {
     }
 }
 
-
-fun savePanasBeginAnswersToTxt(context: Context, username: String, answers: List<Int?>) {
+/**
+ * Αποθήκευση των baseline PANAS απαντήσεων πριν το μουσείο σε:
+ *
+ * /Android/data/com.example.museumemotionapp/files/MuseumEmotion/{username}/panas_begin.txt
+ *
+ * Δεν χρειάζεται permission (ασφαλές για Android 10–14).
+ */
+fun savePanasBeginAnswersToTxt(
+    context: Context,
+    username: String,
+    answers: List<Int?>
+) {
     try {
-        val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "MuseumEmotion/$username")
-        if (!dir.exists()) dir.mkdirs()
+        val userDir: File = getUserFolder(context, username)
+        if (!userDir.exists()) userDir.mkdirs()
 
-        val file = File(dir, "panas_begin.txt")
+        val file = File(userDir, "panas_begin.txt")
+
         val content = buildString {
             panasQuestions.forEachIndexed { index, question ->
                 val ans = answers[index]?.toString() ?: "Χωρίς απάντηση"
@@ -112,8 +130,16 @@ fun savePanasBeginAnswersToTxt(context: Context, username: String, answers: List
         }
 
         file.writeText(content)
-        Toast.makeText(context, "Απαντήσεις αποθηκεύτηκαν στο ${file.absolutePath}", Toast.LENGTH_LONG).show()
+        Toast.makeText(
+            context,
+            "Απαντήσεις αποθηκεύτηκαν στο:\n${file.absolutePath}",
+            Toast.LENGTH_LONG
+        ).show()
     } catch (e: Exception) {
-        Toast.makeText(context, "Σφάλμα αποθήκευσης: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+        Toast.makeText(
+            context,
+            "Σφάλμα αποθήκευσης: ${e.localizedMessage}",
+            Toast.LENGTH_LONG
+        ).show()
     }
 }

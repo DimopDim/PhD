@@ -14,16 +14,20 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavType
-import androidx.navigation.compose.*
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.museumemotionapp.screens.*
+import com.example.museumemotionapp.utils.getUserFolder   // ✅ Χρήση helper από utils
 import kotlinx.coroutines.launch
-import android.os.Environment
 import java.io.File
 
+// ---------- FONT SIZE SUPPORT ----------
 
 enum class FontSizeLevel(val label: String, val scale: Float) {
     SMALL("A", 0.85f),
@@ -33,6 +37,8 @@ enum class FontSizeLevel(val label: String, val scale: Float) {
 
 val LocalFontScale = compositionLocalOf { FontSizeLevel.MEDIUM }
 
+// ---------- MAIN ACTIVITY ----------
+
 @OptIn(ExperimentalMaterial3Api::class)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -40,6 +46,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
+            val context = LocalContext.current   // context για app-specific storage
+
             var fontSizeLevel by rememberSaveable { mutableStateOf(FontSizeLevel.MEDIUM) }
             var username by rememberSaveable { mutableStateOf<String?>(null) }
             var showFontSizeMenu by remember { mutableStateOf(false) }
@@ -59,6 +67,9 @@ class MainActivity : ComponentActivity() {
                                 style = MaterialTheme.typography.titleMedium
                             )
                             Divider()
+
+                            // ---------- LOCK / UNLOCK SCREEN ----------
+
                             NavigationDrawerItem(
                                 label = { Text("Ξεκλείδωμα Οθόνης") },
                                 selected = false,
@@ -89,6 +100,8 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
 
+                            // ---------- USER SELECTION ----------
+
                             NavigationDrawerItem(
                                 label = { Text("Επιλογή Χρήστη") },
                                 selected = false,
@@ -96,13 +109,14 @@ class MainActivity : ComponentActivity() {
                                     scope.launch {
                                         drawerState.close()
                                         navController.navigate("userSelection") {
-                                            popUpTo(0) { inclusive = true } // Clears entire backstack
+                                            popUpTo(0) { inclusive = true } // Καθαρίζει όλο το backstack
                                         }
                                         username = null
                                     }
                                 }
                             )
 
+                            // ---------- ARTWORK LIST ----------
 
                             NavigationDrawerItem(
                                 label = { Text("Λίστα Έργων Τέχνης") },
@@ -121,7 +135,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
 
-
+                            // ---------- QUESTIONNAIRE 1: Big Five ----------
 
                             NavigationDrawerItem(
                                 label = { Text("Ερωτηματολόγιο 01 : Τεστ προσωπικότητας") },
@@ -130,8 +144,9 @@ class MainActivity : ComponentActivity() {
                                     scope.launch {
                                         drawerState.close()
                                         username?.let { user ->
-                                            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                                            val bigFiveFile = File(downloadsDir, "MuseumEmotion/$user/bigfive.txt")
+                                            // App-specific φάκελος χρήστη
+                                            val userDir = getUserFolder(context, user)
+                                            val bigFiveFile = File(userDir, "bigfive.txt")
 
                                             if (bigFiveFile.exists()) {
                                                 Toast.makeText(
@@ -139,7 +154,6 @@ class MainActivity : ComponentActivity() {
                                                     "Το ερωτηματολόγιο Big Five έχει ήδη συμπληρωθεί.",
                                                     Toast.LENGTH_LONG
                                                 ).show()
-                                                // Optional: Show or review answers
                                             } else {
                                                 navController.navigate("bigFiveTest/$user")
                                             }
@@ -152,7 +166,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
 
-
+                            // ---------- QUESTIONNAIRE 2: TAS ----------
 
                             NavigationDrawerItem(
                                 label = { Text("Ερωτηματολόγιο 02: Κλίμακα Αλεξιθυμίας") },
@@ -161,8 +175,8 @@ class MainActivity : ComponentActivity() {
                                     scope.launch {
                                         drawerState.close()
                                         username?.let { user ->
-                                            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                                            val tasFile = File(downloadsDir, "MuseumEmotion/$user/tas.txt")
+                                            val userDir = getUserFolder(context, user)
+                                            val tasFile = File(userDir, "tas.txt")
 
                                             if (tasFile.exists()) {
                                                 Toast.makeText(
@@ -182,7 +196,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
 
-
+                            // ---------- QUESTIONNAIRE 3: PANAS ----------
 
                             NavigationDrawerItem(
                                 label = { Text("Ερωτηματολόγιο 03: Κλίμακα θετικών και αρνητικών επιδράσεων") },
@@ -191,8 +205,8 @@ class MainActivity : ComponentActivity() {
                                     scope.launch {
                                         drawerState.close()
                                         username?.let { user ->
-                                            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                                            val panasFile = File(downloadsDir, "MuseumEmotion/$user/panas.txt")
+                                            val userDir = getUserFolder(context, user)
+                                            val panasFile = File(userDir, "panas.txt")
 
                                             if (panasFile.exists()) {
                                                 Toast.makeText(
@@ -211,13 +225,6 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             )
-
-
-
-
-
-
-
                         }
                     }
                 ) {
@@ -262,7 +269,9 @@ class MainActivity : ComponentActivity() {
                             startDestination = "userSelection",
                             modifier = Modifier.padding(innerPadding)
                         ) {
-                            composable("userSelection") { UserSelectionScreen(navController) }
+                            composable("userSelection") {
+                                UserSelectionScreen(navController)
+                            }
 
                             composable("loginScreen") {
                                 LoginScreen(navController) { confirmedUsername ->
@@ -309,7 +318,8 @@ class MainActivity : ComponentActivity() {
                                 AudioPlaybackScreen(navController, artworkId, uname)
                             }
 
-                            composable("researchConsent/{username}",
+                            composable(
+                                "researchConsent/{username}",
                                 arguments = listOf(navArgument("username") { type = NavType.StringType })
                             ) {
                                 val uname = it.arguments?.getString("username") ?: ""
@@ -317,7 +327,8 @@ class MainActivity : ComponentActivity() {
                                 ResearchConsentScreen(navController, uname)
                             }
 
-                            composable("researchInfo/{username}",
+                            composable(
+                                "researchInfo/{username}",
                                 arguments = listOf(navArgument("username") { type = NavType.StringType })
                             ) {
                                 val uname = it.arguments?.getString("username") ?: ""
@@ -325,7 +336,8 @@ class MainActivity : ComponentActivity() {
                                 ResearchInfoScreen(navController, uname)
                             }
 
-                            composable("consentFormScreen/{username}",
+                            composable(
+                                "consentFormScreen/{username}",
                                 arguments = listOf(navArgument("username") { type = NavType.StringType })
                             ) {
                                 val uname = it.arguments?.getString("username") ?: ""
@@ -354,7 +366,6 @@ class MainActivity : ComponentActivity() {
                                 BigFiveScreen(username = uname, navController = navController)
                             }
 
-
                             composable(
                                 "tasTest/{username}",
                                 arguments = listOf(navArgument("username") { type = NavType.StringType })
@@ -362,7 +373,6 @@ class MainActivity : ComponentActivity() {
                                 val uname = it.arguments?.getString("username") ?: "unknown"
                                 TasScreen(username = uname, navController = navController)
                             }
-
 
                             composable(
                                 "panasTest/{username}",
@@ -379,11 +389,6 @@ class MainActivity : ComponentActivity() {
                                 val uname = it.arguments?.getString("username") ?: "unknown"
                                 PanasScreenBegin(username = uname, navController = navController)
                             }
-
-
-
-
-
                         }
                     }
                 }

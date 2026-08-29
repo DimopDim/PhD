@@ -1,20 +1,27 @@
 package com.example.museumemotionapp.screens
 
-import android.os.Environment
+import android.content.Context
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue   // για το "by remember { ... }"
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.museumemotionapp.LocalFontScale
+import com.example.museumemotionapp.utils.getMuseumRootFolder
 import java.io.File
 
 @Composable
@@ -23,7 +30,12 @@ fun ExistingUserScreen(
     onUsernameSelected: (String) -> Unit
 ) {
     val scale = LocalFontScale.current.scale
-    val users = getExistingUsers()
+    val context = LocalContext.current
+
+    // Φορτώνουμε τους users μία φορά όταν ανοίγει η οθόνη
+    val users by remember {
+        mutableStateOf(getExistingUsers(context))
+    }
 
     Column(
         modifier = Modifier
@@ -31,7 +43,7 @@ fun ExistingUserScreen(
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Centered Content
+        // Centered content
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.Center,
@@ -93,16 +105,22 @@ fun ExistingUserScreen(
     }
 }
 
-// Function to get existing users from "Download/MuseumEmotion/", sorted by last modified
-fun getExistingUsers(): List<String> {
-    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-    val museumEmotionFolder = File(downloadsDir, "MuseumEmotion")
+/**
+ * Επιστρέφει λίστα usernames από τα subfolders του:
+ *   /Download/MuseumEmotion
+ *
+ * Δηλαδή /storage/emulated/0/Download/MuseumEmotion/{username}
+ */
+fun getExistingUsers(context: Context): List<String> {
+    // Ρίζα MuseumEmotion στο Downloads (ορίζεται στο StorageUtils)
+    val museumEmotionFolder = getMuseumRootFolder(context)
 
     return if (museumEmotionFolder.exists()) {
         museumEmotionFolder.listFiles()
             ?.filter { it.isDirectory }
             ?.sortedByDescending { it.lastModified() }
-            ?.map { it.name } ?: emptyList()
+            ?.map { it.name }
+            ?: emptyList()
     } else {
         emptyList()
     }

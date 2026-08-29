@@ -1,15 +1,22 @@
 package com.example.museumemotionapp.screens
 
 import android.app.Activity
-import android.util.Log
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -24,7 +31,8 @@ import androidx.navigation.NavController
 import com.example.museumemotionapp.LocalFontScale
 import com.example.museumemotionapp.utils.saveConsentFormAsPdf
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun ConsentFormScreen(navController: NavController, username: String) {
@@ -50,16 +58,19 @@ fun ConsentFormScreen(navController: NavController, username: String) {
     val answers = remember { mutableStateListOf(*Array<String?>(questions.size) { null }) }
     val participantName = remember { mutableStateOf(TextFieldValue()) }
     val researcherName = remember { mutableStateOf(TextFieldValue()) }
-    val date = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date()) }
+    val date = remember {
+        SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
+    }
 
     val signaturePoints = remember { mutableStateListOf<Offset>() }
     val researcherSignaturePoints = remember { mutableStateListOf<Offset>() }
 
-    val isFormValid = answers.all { it != null } &&
-            signaturePoints.any { it != Offset.Unspecified } &&
-            researcherSignaturePoints.any { it != Offset.Unspecified } &&
-            participantName.value.text.isNotBlank() &&
-            researcherName.value.text.isNotBlank()
+    val isFormValid =
+        answers.all { it != null } &&
+                signaturePoints.any { it != Offset.Unspecified } &&
+                researcherSignaturePoints.any { it != Offset.Unspecified } &&
+                participantName.value.text.isNotBlank() &&
+                researcherName.value.text.isNotBlank()
 
     Column(
         modifier = Modifier
@@ -72,10 +83,16 @@ fun ConsentFormScreen(navController: NavController, username: String) {
         questions.forEachIndexed { index, question ->
             Text(text = question, fontSize = 14.sp * scale)
             Row(verticalAlignment = Alignment.CenterVertically) {
-                RadioButton(selected = answers[index] == "ΝΑΙ", onClick = { answers[index] = "ΝΑΙ" })
+                RadioButton(
+                    selected = answers[index] == "ΝΑΙ",
+                    onClick = { answers[index] = "ΝΑΙ" }
+                )
                 Text("ΝΑΙ", fontSize = 14.sp * scale)
                 Spacer(modifier = Modifier.width(16.dp))
-                RadioButton(selected = answers[index] == "ΟΧΙ", onClick = { answers[index] = "ΟΧΙ" })
+                RadioButton(
+                    selected = answers[index] == "ΟΧΙ",
+                    onClick = { answers[index] = "ΟΧΙ" }
+                )
                 Text("ΟΧΙ", fontSize = 14.sp * scale)
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -83,7 +100,10 @@ fun ConsentFormScreen(navController: NavController, username: String) {
 
         Spacer(modifier = Modifier.height(16.dp))
         Text("Ονοματεπώνυμο Συμμετέχοντος", fontSize = 14.sp * scale)
-        OutlinedTextField(value = participantName.value, onValueChange = { participantName.value = it })
+        OutlinedTextField(
+            value = participantName.value,
+            onValueChange = { participantName.value = it }
+        )
 
         Spacer(modifier = Modifier.height(8.dp))
         Text("Υπογραφή Συμμετέχοντος", fontSize = 14.sp * scale)
@@ -103,7 +123,10 @@ fun ConsentFormScreen(navController: NavController, username: String) {
 
         Spacer(modifier = Modifier.height(16.dp))
         Text("Ονοματεπώνυμο Ερευνητή", fontSize = 14.sp * scale)
-        OutlinedTextField(value = researcherName.value, onValueChange = { researcherName.value = it })
+        OutlinedTextField(
+            value = researcherName.value,
+            onValueChange = { researcherName.value = it }
+        )
 
         Spacer(modifier = Modifier.height(8.dp))
         Text("Υπογραφή Ερευνητή (χειρόγραφη)", fontSize = 14.sp * scale)
@@ -154,14 +177,18 @@ fun SignatureCanvas(pointsList: MutableList<Offset>) {
             .pointerInput(Unit) {
                 detectDragGestures(
                     onDragStart = { offset ->
-                        if (offset.x in 0f..size.width.toFloat() && offset.y in 0f..size.height.toFloat()) {
+                        if (offset.x in 0f..size.width.toFloat() &&
+                            offset.y in 0f..size.height.toFloat()
+                        ) {
                             pointsList.add(Offset.Unspecified)
                             pointsList.add(offset)
                         }
                     },
                     onDrag = { change, _ ->
                         val position = change.position
-                        if (position.x in 0f..size.width.toFloat() && position.y in 0f..size.height.toFloat()) {
+                        if (position.x in 0f..size.width.toFloat() &&
+                            position.y in 0f..size.height.toFloat()
+                        ) {
                             pointsList.add(position)
                         }
                     }

@@ -1,7 +1,6 @@
 package com.example.museumemotionapp.screens
 
 import android.content.Context
-import android.os.Environment
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,6 +17,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.museumemotionapp.LocalFontScale
 import com.example.museumemotionapp.questions.tasQuestions
+import com.example.museumemotionapp.utils.getUserFolder   // ✅ app-specific storage helper
 import java.io.File
 
 @Composable
@@ -102,10 +102,11 @@ fun TasScreen(username: String, navController: NavController) {
 
 fun saveTasAnswersToTxt(context: Context, username: String, answers: List<Int?>) {
     try {
-        val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "MuseumEmotion/$username")
-        if (!dir.exists()) dir.mkdirs()
+        // ✅ Χρήση app-specific φακέλου χρήστη
+        val userDir: File = getUserFolder(context, username)
+        if (!userDir.exists()) userDir.mkdirs()
 
-        val file = File(dir, "tas.txt")
+        val file = File(userDir, "tas.txt")
         val content = buildString {
             tasQuestions.forEachIndexed { index, question ->
                 val ans = answers[index]?.toString() ?: "Χωρίς απάντηση"
@@ -114,8 +115,16 @@ fun saveTasAnswersToTxt(context: Context, username: String, answers: List<Int?>)
         }
 
         file.writeText(content)
-        Toast.makeText(context, "Απαντήσεις αποθηκεύτηκαν στο ${file.absolutePath}", Toast.LENGTH_LONG).show()
+        Toast.makeText(
+            context,
+            "Απαντήσεις αποθηκεύτηκαν στο ${file.absolutePath}",
+            Toast.LENGTH_LONG
+        ).show()
     } catch (e: Exception) {
-        Toast.makeText(context, "Σφάλμα αποθήκευσης: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+        Toast.makeText(
+            context,
+            "Σφάλμα αποθήκευσης: ${e.localizedMessage}",
+            Toast.LENGTH_LONG
+        ).show()
     }
 }

@@ -37,13 +37,19 @@ fun UserSelectionScreen(navController: NavController) {
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Button(onClick = { navController.navigate("loginScreen") }) {
+        Button(
+            onClick = { navController.navigate("loginScreen") },
+            modifier = Modifier.fillMaxWidth()
+        ) {
             Text("New User / Νέος Χρήστης", fontSize = 16.sp * scale)
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Button(onClick = { navController.navigate("existingUserScreen") }) {
+        Button(
+            onClick = { navController.navigate("existingUserScreen") },
+            modifier = Modifier.fillMaxWidth()
+        ) {
             Text("Existing User / Υπάρχων Χρήστης", fontSize = 16.sp * scale)
         }
 

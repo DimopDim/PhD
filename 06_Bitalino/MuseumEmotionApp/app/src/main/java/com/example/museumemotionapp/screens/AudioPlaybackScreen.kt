@@ -30,23 +30,28 @@ import kotlin.math.roundToInt
 fun AudioPlaybackScreen(navController: NavController, artworkId: String, username: String) {
     val context = LocalContext.current
     val scale = LocalFontScale.current.scale
+
     val timestampEntry = remember { System.currentTimeMillis() }
+
     var selectedEmotion by remember { mutableStateOf<Emotion?>(null) }
     var intensityLevel by remember { mutableStateOf(4f) }
     var sliderTouched by remember { mutableStateOf(false) }
+
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
     var isPlaying by remember { mutableStateOf(false) }
     var currentPosition by remember { mutableStateOf(0) }
     var duration by remember { mutableStateOf(1) }
     var showNoAudioDialog by remember { mutableStateOf(false) }
 
-    // For custom "Other" emotion
+    // Custom "Other" emotion
     var showCustomEmotionDialog by remember { mutableStateOf(false) }
     var customEmotionText by remember { mutableStateOf("") }
 
-    BackHandler { }
+    // Μπλοκάρουμε το hardware back
+    BackHandler(enabled = true) { }
 
-    LaunchedEffect(Unit) {
+    // Έλεγχος αν υπάρχει το audio asset
+    LaunchedEffect(artworkId) {
         try {
             context.assets.openFd("audio/$artworkId.mp3").close()
         } catch (e: IOException) {
@@ -55,6 +60,7 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
         }
     }
 
+    // Αν δεν υπάρχει ήχος → dialog & έξοδος
     if (showNoAudioDialog) {
         AlertDialog(
             onDismissRequest = {
@@ -65,7 +71,7 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
             title = { Text("Audio Not Available | Ήχος Μη Διαθέσιμος", fontSize = 18.sp * scale) },
             text = {
                 Text(
-                    "There is no audio file for this artwork. | Το αρχείο ήχου δεν είναι διαθέσιμο γι' αυτό το έργο.",
+                    "There is no audio file for this artwork.\nΤο αρχείο ήχου δεν είναι διαθέσιμο γι' αυτό το έργο.",
                     fontSize = 14.sp * scale
                 )
             },
@@ -82,41 +88,48 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
         return
     }
 
-    DisposableEffect(Unit) {
+    // Φόρτωση & αυτόματο play του ήχου
+    DisposableEffect(artworkId) {
         try {
             val afd = context.assets.openFd("audio/$artworkId.mp3")
             val player = MediaPlayer().apply {
                 setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
                 prepare()
                 start()
-                isPlaying = true
-                duration = this.duration
             }
             mediaPlayer = player
-
-            onDispose { player.release() }
+            isPlaying = true
+            duration = player.duration
         } catch (e: IOException) {
             Log.e("AudioPlaybackScreen", "Failed to load audio", e)
         }
 
         onDispose {
-            mediaPlayer?.release()
-            mediaPlayer = null
+            try {
+                mediaPlayer?.release()
+            } catch (_: Exception) {
+            } finally {
+                mediaPlayer = null
+                isPlaying = false
+            }
         }
     }
 
+    // Ενημέρωση τρέχουσας θέσης όσο παίζει
     LaunchedEffect(isPlaying) {
         while (isPlaying) {
             delay(500)
             mediaPlayer?.let {
                 currentPosition = it.currentPosition
-                duration = it.duration
+                duration = it.duration.coerceAtLeast(1)
             }
         }
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text("Listening to: $artworkId", fontSize = 16.sp * scale)
@@ -124,60 +137,100 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-            Button(onClick = {
-                mediaPlayer?.start(); isPlaying = true
-            }, enabled = mediaPlayer != null && !isPlaying) {
+        // Play / Pause / Stop
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Button(
+                onClick = {
+                    mediaPlayer?.start()
+                    isPlaying = true
+                },
+                enabled = mediaPlayer != null && !isPlaying
+            ) {
                 Text("▶ Play", fontSize = 16.sp * scale)
             }
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            Button(onClick = {
-                mediaPlayer?.pause(); isPlaying = false
-            }, enabled = mediaPlayer != null && isPlaying) {
+            Button(
+                onClick = {
+                    mediaPlayer?.pause()
+                    isPlaying = false
+                },
+                enabled = mediaPlayer != null && isPlaying
+            ) {
                 Text("⏸ Pause", fontSize = 16.sp * scale)
             }
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            Button(onClick = {
-                mediaPlayer?.stop()
-                mediaPlayer?.prepare()
-                isPlaying = false
-                currentPosition = 0
-            }, enabled = mediaPlayer != null) {
+            Button(
+                onClick = {
+                    mediaPlayer?.apply {
+                        stop()
+                        prepare()
+                    }
+                    isPlaying = false
+                    currentPosition = 0
+                },
+                enabled = mediaPlayer != null
+            ) {
                 Text("⏹ Stop", fontSize = 16.sp * scale)
             }
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-            Button(onClick = {
-                mediaPlayer?.seekTo((mediaPlayer?.currentPosition ?: 0) - 10000)
-            }, enabled = mediaPlayer != null) {
+        // Seek ±10s με ασφάλεια
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Button(
+                onClick = {
+                    mediaPlayer?.let { player ->
+                        val newPos = (player.currentPosition - 10_000).coerceAtLeast(0)
+                        player.seekTo(newPos)
+                        currentPosition = newPos
+                    }
+                },
+                enabled = mediaPlayer != null
+            ) {
                 Text("⏪ -10s", fontSize = 16.sp * scale)
             }
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            Button(onClick = {
-                mediaPlayer?.seekTo((mediaPlayer?.currentPosition ?: 0) + 10000)
-            }, enabled = mediaPlayer != null) {
+            Button(
+                onClick = {
+                    mediaPlayer?.let { player ->
+                        val newPos = (player.currentPosition + 10_000)
+                            .coerceAtMost(duration)
+                        player.seekTo(newPos)
+                        currentPosition = newPos
+                    }
+                },
+                enabled = mediaPlayer != null
+            ) {
                 Text("⏩ +10s", fontSize = 16.sp * scale)
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text("Time: ${formatTime(currentPosition)} / ${formatTime(duration)}", fontSize = 14.sp * scale)
+        Text(
+            "Time: ${formatTime(currentPosition)} / ${formatTime(duration)}",
+            fontSize = 14.sp * scale
+        )
 
         Slider(
             value = currentPosition.toFloat(),
             onValueChange = {
-                mediaPlayer?.seekTo(it.toInt())
-                currentPosition = it.toInt()
+                val newPos = it.toInt().coerceIn(0, duration)
+                mediaPlayer?.seekTo(newPos)
+                currentPosition = newPos
             },
             valueRange = 0f..duration.toFloat(),
             modifier = Modifier.fillMaxWidth(),
@@ -189,6 +242,7 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
         Text("Select how you feel while listening:", fontSize = 16.sp * scale)
         Text("Επιλέξτε πως νιώθετε ενώ ακούτε την παρουσίαση:", fontSize = 16.sp * scale)
 
+        // Λίστα συναισθημάτων
         Column(modifier = Modifier.weight(1f)) {
             LazyColumn {
                 items(emotions) { emotion ->
@@ -216,14 +270,23 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
                             }
                         )
                         Column(modifier = Modifier.padding(start = 8.dp)) {
-                            Text("${emotion.id}. ${emotion.englishLabel}", fontSize = 16.sp * scale)
-                            Text(emotion.greekLabel, style = MaterialTheme.typography.bodySmall.copy(fontSize = 14.sp * scale))
+                            Text(
+                                "${emotion.id}. ${emotion.englishLabel}",
+                                fontSize = 16.sp * scale
+                            )
+                            Text(
+                                emotion.greekLabel,
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontSize = 14.sp * scale
+                                )
+                            )
                         }
                     }
                 }
             }
         }
 
+        // Dialog για custom συναίσθημα
         if (showCustomEmotionDialog) {
             AlertDialog(
                 onDismissRequest = { showCustomEmotionDialog = false },
@@ -247,6 +310,7 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Slider έντασης συναισθήματος
         val intensityDescriptions = mapOf(
             1 to "Not at all | Καθόλου",
             2 to "Very little | Πολύ λίγο",
@@ -259,7 +323,11 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
         val roundedIntensity = intensityLevel.roundToInt().coerceIn(1, 7)
         val description = intensityDescriptions[roundedIntensity] ?: ""
 
-        Text(description, fontSize = 14.sp * scale, color = if (selectedEmotion != null) Color.Gray else Color.LightGray)
+        Text(
+            description,
+            fontSize = 14.sp * scale,
+            color = if (selectedEmotion != null) Color.Gray else Color.LightGray
+        )
 
         Slider(
             value = intensityLevel,
@@ -281,28 +349,32 @@ fun AudioPlaybackScreen(navController: NavController, artworkId: String, usernam
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Save & Exit
         Button(
             onClick = {
                 val timestampExit = System.currentTimeMillis()
-                selectedEmotion?.let {
-                    val label = if (it.id.toIntOrNull() == 23)
-                        customEmotionText.trim().ifEmpty { "Other (no description)" }
-                    else it.greekLabel
+                selectedEmotion?.let { emotion ->
+                    val label =
+                        if (emotion.id.toIntOrNull() == 23)
+                            customEmotionText.trim().ifEmpty { "Other (no description)" }
+                        else
+                            emotion.greekLabel
 
                     logAudioEmotion(
-                        context,
-                        username,
-                        artworkId,
-                        it.id,
-                        intensityLevel.toInt(),
-                        timestampEntry,
-                        timestampExit,
-                        label
+                        context = context,
+                        username = username,
+                        artworkId = artworkId,
+                        emotionId = emotion.id,
+                        intensityLevel = intensityLevel.toInt(),
+                        timestampEntry = timestampEntry,
+                        timestampExit = timestampExit,
+                        emotionLabel = label
                     )
                 }
 
-                mediaPlayer?.release()
-                mediaPlayer = null
+                // Δεν κάνουμε release εδώ – το κάνει το onDispose του DisposableEffect
+                mediaPlayer?.pause()
+                isPlaying = false
 
                 navController.navigate("artworkSelection/$username") {
                     popUpTo("artworkSelection/$username") { inclusive = true }

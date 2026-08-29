@@ -1,14 +1,12 @@
 package com.example.museumemotionapp.screens
 
 import android.content.Context
-import android.os.Environment
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-//import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -18,13 +16,18 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.museumemotionapp.LocalFontScale
 import com.example.museumemotionapp.data.bigFiveQuestions
+import com.example.museumemotionapp.utils.getUserFolder   // ✅ Χρήση app-specific storage
 import java.io.File
 
 @Composable
 fun BigFiveScreen(username: String, navController: NavController) {
     val context = LocalContext.current
     val scale = LocalFontScale.current.scale
-    val answers = remember { mutableStateListOf<Int?>().apply { repeat(bigFiveQuestions.size) { add(null) } } }
+    val answers = remember {
+        mutableStateListOf<Int?>().apply {
+            repeat(bigFiveQuestions.size) { add(null) }
+        }
+    }
 
     Box(
         modifier = Modifier
@@ -126,7 +129,8 @@ fun QuestionItem(
 
 fun saveAnswersToTxt(context: Context, username: String, answers: List<Int?>) {
     try {
-        val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "MuseumEmotion/$username")
+        // ✅ App-specific external storage: /Android/data/.../files/MuseumEmotion/username
+        val dir = getUserFolder(context, username)
         if (!dir.exists()) dir.mkdirs()
 
         val file = File(dir, "bigfive.txt")
@@ -138,8 +142,16 @@ fun saveAnswersToTxt(context: Context, username: String, answers: List<Int?>) {
         }
 
         file.writeText(content)
-        Toast.makeText(context, "Απαντήσεις αποθηκεύτηκαν στο ${file.absolutePath}", Toast.LENGTH_LONG).show()
+        Toast.makeText(
+            context,
+            "Απαντήσεις αποθηκεύτηκαν στο ${file.absolutePath}",
+            Toast.LENGTH_LONG
+        ).show()
     } catch (e: Exception) {
-        Toast.makeText(context, "Σφάλμα αποθήκευσης: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+        Toast.makeText(
+            context,
+            "Σφάλμα αποθήκευσης: ${e.localizedMessage}",
+            Toast.LENGTH_LONG
+        ).show()
     }
 }

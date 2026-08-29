@@ -1,6 +1,5 @@
 package com.example.museumemotionapp.screens
 
-import android.os.Environment
 import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.*
@@ -15,18 +14,20 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.navigation.NavController
 import com.example.museumemotionapp.LocalFontScale
+import com.example.museumemotionapp.utils.getUserFolder   // ✅ Χρήση app-specific storage
 import java.io.File
 
 @Composable
 fun ResearchInfoScreen(navController: NavController, username: String) {
     val scale = LocalFontScale.current.scale
     val context = LocalContext.current
+
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showDeletedMessageDialog by remember { mutableStateOf(false) }
 
-    // Disable back button
+    // 🔒 Απενεργοποίηση hardware back
     BackHandler(enabled = true) {
-        // Do nothing to block back navigation
+        // Δεν κάνουμε τίποτα → μπλοκάρουμε την επιστροφή
     }
 
     val infoText = remember {
@@ -164,25 +165,43 @@ fun ResearchInfoScreen(navController: NavController, username: String) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Button(onClick = { showDeleteDialog = true }) {
-                Text("I don't wish to participate\nΔεν επιθυμώ να συμμετάσχω", fontSize = 14.sp * scale)
+                Text(
+                    "I don't wish to participate\nΔεν επιθυμώ να συμμετάσχω",
+                    fontSize = 14.sp * scale
+                )
             }
 
             Button(onClick = {
                 navController.navigate("consentFormScreen/$username")
             }) {
-                Text("I wish to participate\nΕπιθυμώ να συμμετάσχω", fontSize = 14.sp * scale)
+                Text(
+                    "I wish to participate\nΕπιθυμώ να συμμετάσχω",
+                    fontSize = 14.sp * scale
+                )
             }
         }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "© 2025 MMAI Team | University of the Aegean",
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            textAlign = TextAlign.Center,
+            fontSize = 12.sp * scale,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp)
+        )
     }
 
-    // First dialog: confirm deletion
+    // -------- Dialog 1: Επιβεβαίωση διαγραφής --------
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             confirmButton = {
                 Button(onClick = {
-                    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                    val userFolder = File(downloadsDir, "MuseumEmotion/$username")
+                    // 🔒 Διαγραφή δεδομένων από app-specific storage
+                    val userFolder: File = getUserFolder(context, username)
                     if (userFolder.exists()) {
                         userFolder.deleteRecursively()
                         Log.d("ResearchInfoScreen", "Folder deleted: $userFolder")
@@ -201,14 +220,15 @@ fun ResearchInfoScreen(navController: NavController, username: String) {
             title = { Text("Confirmation | Επιβεβαίωση", fontSize = 18.sp * scale) },
             text = {
                 Text(
-                    "Your participation will be cancelled and the data will be deleted.\nDo you wish to continue?\n\nΗ συμμετοχή σας θα ακυρωθεί και τα δεδομένα θα διαγραφούν.\nΕπιθυμείτε να συνεχίσετε;",
+                    "Your participation will be cancelled and the data will be deleted.\nDo you wish to continue?\n\n" +
+                            "Η συμμετοχή σας θα ακυρωθεί και τα δεδομένα θα διαγραφούν.\nΕπιθυμείτε να συνεχίσετε;",
                     fontSize = 14.sp * scale
                 )
             }
         )
     }
 
-    // Second dialog: confirmation message after deletion
+    // -------- Dialog 2: Μήνυμα μετά τη διαγραφή --------
     if (showDeletedMessageDialog) {
         AlertDialog(
             onDismissRequest = { showDeletedMessageDialog = false },

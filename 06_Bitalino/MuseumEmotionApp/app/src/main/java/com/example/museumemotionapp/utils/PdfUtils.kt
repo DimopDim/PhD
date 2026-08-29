@@ -1,18 +1,13 @@
 package com.example.museumemotionapp.utils
 
-import android.Manifest
-import android.app.Activity
 import android.content.Context
-import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.pdf.PdfDocument
-import android.os.Environment
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.ui.geometry.Offset
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import androidx.core.graphics.scale
 import java.io.File
 import java.io.FileOutputStream
@@ -72,7 +67,8 @@ fun drawSignature(
     boxWidth: Float,
     boxHeight: Float
 ) {
-    val allPoints = strokes.flatten().filter { it != Offset.Unspecified && !it.x.isNaN() && !it.y.isNaN() }
+    val allPoints = strokes.flatten()
+        .filter { it != Offset.Unspecified && !it.x.isNaN() && !it.y.isNaN() }
     if (allPoints.size <= 1) return
 
     val minX = allPoints.minOf { it.x }
@@ -110,7 +106,7 @@ fun drawSignature(
 
 fun saveConsentFormAsPdf(
     context: Context,
-    activity: Activity?,
+    activity: android.app.Activity?, // κρατάμε την παράμετρο για συμβατότητα, δεν τη χρησιμοποιούμε πλέον
     username: String,
     answers: List<String>,
     participantName: String,
@@ -119,20 +115,6 @@ fun saveConsentFormAsPdf(
     signaturePoints: List<List<Offset>>,
     researcherSignaturePoints: List<List<Offset>>
 ) {
-    fun isStoragePermissionGranted(): Boolean {
-        val permission = Manifest.permission.WRITE_EXTERNAL_STORAGE
-        val granted = ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
-        if (!granted && activity != null) {
-            ActivityCompat.requestPermissions(activity, arrayOf(permission), 1002)
-        }
-        return granted
-    }
-
-    if (!isStoragePermissionGranted()) {
-        Log.e("PdfUtils", "Permission not granted. Aborting save.")
-        return
-    }
-
     val document = PdfDocument()
     val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
     val page = document.startPage(pageInfo)
@@ -144,6 +126,7 @@ fun saveConsentFormAsPdf(
 
     var y = 40f
 
+    // Logo
     try {
         val inputStream = context.assets.open("logo.png")
         val originalBitmap = BitmapFactory.decodeStream(inputStream)
@@ -158,6 +141,7 @@ fun saveConsentFormAsPdf(
         y += 15f
     }
 
+    // Title
     paint.textSize = 10f
     paint.isFakeBoldText = true
     val title = "ΕΝΤΥΠΟ ΕΝΗΜΕΡΗΣ ΣΥΓΚΑΤΑΘΕΣΗΣ"
@@ -172,7 +156,12 @@ fun saveConsentFormAsPdf(
     paint.isFakeBoldText = false
 
     canvas.drawText("Τίτλος:", leftX, y, paint)
-    canvas.drawText("«Ανάλυση εμπειρίας χρήστη κατά την έκθεση σε έργα τέχνης»", rightX, y, paint)
+    canvas.drawText(
+        "«Ανάλυση εμπειρίας χρήστη κατά την έκθεση σε έργα τέχνης»",
+        rightX,
+        y,
+        paint
+    )
     y += rowHeight
     canvas.drawText("Ερευνητές/τριες:", leftX, y, paint)
 
@@ -183,17 +172,36 @@ fun saveConsentFormAsPdf(
         "– Δημήτριος Δημόπουλος, Τμήμα: Μηχανικών Πληροφοριακών και Επικοινωνιακών Συστημάτων, Θέση: Διδακτορικός Φοιτητής, Σχέση με Παν/μιο Αιγαίου: Διδακτορικός Φοιτητής, Επιβλέπων: Θεόδωρος Κωστούλας"
     )
     for (line in researcherLines) {
-        y = drawMultilineText(canvas, line, paint, rightX, y, pageInfo.pageWidth - rightX - 40f, 14f) + 0.5f
+        y = drawMultilineText(
+            canvas,
+            line,
+            paint,
+            rightX,
+            y,
+            pageInfo.pageWidth - rightX - 40f,
+            14f
+        ) + 0.5f
     }
 
     canvas.drawText("Χρηματοδότης:", leftX, y, paint)
     canvas.drawText("Δεν Εφαρμόζεται", rightX, y, paint)
     y += rowHeight
-    canvas.drawLine(40f, y, pageInfo.pageWidth - 40f, y, Paint().apply { strokeWidth = 2f; color = Color.BLACK })
+    canvas.drawLine(
+        40f,
+        y,
+        pageInfo.pageWidth - 40f,
+        y,
+        Paint().apply { strokeWidth = 2f; color = Color.BLACK }
+    )
     y += 11f
 
     paint.isFakeBoldText = true
-    canvas.drawText("Παρακαλούμε συμπληρώστε τα αντίστοιχα τετραγωνίδια για να δηλώσετε συναίνεση", 40f, y, paint)
+    canvas.drawText(
+        "Παρακαλούμε συμπληρώστε τα αντίστοιχα τετραγωνίδια για να δηλώσετε συναίνεση",
+        40f,
+        y,
+        paint
+    )
     y += 5f
 
     val colQuestionX = 40f
@@ -202,7 +210,11 @@ fun saveConsentFormAsPdf(
     val colYesX = pageInfo.pageWidth - 40f - colNoWidth - colYesWidth
     val colNoX = pageInfo.pageWidth - 40f - colNoWidth
     val questionColumnWidth = colYesX - colQuestionX - 5f
-    val linePaint = Paint().apply { strokeWidth = 1f; color = Color.BLACK; style = Paint.Style.STROKE }
+    val linePaint = Paint().apply {
+        strokeWidth = 1f
+        color = Color.BLACK
+        style = Paint.Style.STROKE
+    }
 
     canvas.drawText("Ερωτήσεις", colQuestionX + 4f, y + 12f, paint)
     canvas.drawText("ΝΑΙ", colYesX + 8f, y + 12f, paint)
@@ -272,7 +284,14 @@ fun saveConsentFormAsPdf(
     val resSigBoxLeft = 40f
     val resSigBoxWidth = 200f
     val resSigBoxHeight = 50f
-    drawSignature(canvas, researcherSignaturePoints, resSigBoxLeft, resSigBoxTop, resSigBoxWidth, resSigBoxHeight)
+    drawSignature(
+        canvas,
+        researcherSignaturePoints,
+        resSigBoxLeft,
+        resSigBoxTop,
+        resSigBoxWidth,
+        resSigBoxHeight
+    )
     y = resSigBoxTop + resSigBoxHeight + 10f
 
     canvas.drawText("Ημερομηνία: $date", 40f, y, paint)
@@ -280,14 +299,26 @@ fun saveConsentFormAsPdf(
     document.finishPage(page)
 
     try {
-        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        val userFolder = File(downloadsDir, "MuseumEmotion/$username")
+        // 🔒 Αποθήκευση στον app-specific φάκελο χρήστη (ίδιο με logs / questionnaires)
+        val userFolder: File = getUserFolder(context, username)
         if (!userFolder.exists()) userFolder.mkdirs()
+
         val file = File(userFolder, "ConsentForm.pdf")
         document.writeTo(FileOutputStream(file))
+
         Log.d("PdfUtils", "PDF saved to: ${file.absolutePath}")
+        Toast.makeText(
+            context,
+            "Η φόρμα συναίνεσης αποθηκεύτηκε στο:\n${file.absolutePath}",
+            Toast.LENGTH_LONG
+        ).show()
     } catch (e: Exception) {
         Log.e("PdfUtils", "Error saving PDF", e)
+        Toast.makeText(
+            context,
+            "Σφάλμα κατά την αποθήκευση του PDF: ${e.localizedMessage}",
+            Toast.LENGTH_LONG
+        ).show()
     } finally {
         document.close()
     }

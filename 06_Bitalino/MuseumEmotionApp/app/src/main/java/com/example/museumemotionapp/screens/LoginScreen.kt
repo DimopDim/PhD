@@ -2,10 +2,6 @@
 
 package com.example.museumemotionapp.screens
 
-import android.Manifest
-import android.app.Activity
-import android.content.pm.PackageManager
-import android.os.Environment
 import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -14,8 +10,16 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -28,13 +32,11 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import com.example.museumemotionapp.LocalFontScale
+import com.example.museumemotionapp.utils.getUserFolder   // ✅ σωστό helper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.io.File
 
 @Composable
 fun LoginScreen(
@@ -42,7 +44,6 @@ fun LoginScreen(
     onUsernameConfirmed: (String) -> Unit
 ) {
     val context = LocalContext.current
-    val activity = context as? Activity
     val scale = LocalFontScale.current.scale
     val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
@@ -54,15 +55,6 @@ fun LoginScreen(
 
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
     val focusRequester = remember { FocusRequester() }
-
-    fun requestStoragePermission(): Boolean {
-        val permission = Manifest.permission.WRITE_EXTERNAL_STORAGE
-        val granted = ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
-        if (!granted && activity != null) {
-            ActivityCompat.requestPermissions(activity, arrayOf(permission), 1001)
-        }
-        return granted
-    }
 
     Box(
         modifier = Modifier
@@ -90,7 +82,10 @@ fun LoginScreen(
                 verticalArrangement = Arrangement.Center,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Enter Your Name / Εισάγετε το όνομα σας", fontSize = 18.sp * scale)
+                Text(
+                    "Enter Your Name / Εισάγετε το όνομα σας",
+                    fontSize = 18.sp * scale
+                )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -102,8 +97,8 @@ fun LoginScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(focusRequester)
-                        .onFocusChanged {
-                            if (it.isFocused) {
+                        .onFocusChanged { focusState ->
+                            if (focusState.isFocused) {
                                 coroutineScope.launch {
                                     delay(300)
                                     bringIntoViewRequester.bringIntoView()
@@ -129,32 +124,31 @@ fun LoginScreen(
                     Button(onClick = {
                         focusManager.clearFocus()
                         if (username.isNotBlank()) {
-                            if (requestStoragePermission()) {
-                                try {
-                                    val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-                                    val museumEmotionFolder = File(downloadsDir, "MuseumEmotion")
-                                    val userFolder = File(museumEmotionFolder, username)
+                            val trimmedUsername = username.trim()
+                            username = trimmedUsername
 
-                                    Log.d("LoginScreen", "Creating path: ${userFolder.absolutePath}")
+                            try {
+                                val userFolder = getUserFolder(context, trimmedUsername)
+                                Log.d("LoginScreen", "User folder path: ${userFolder.absolutePath}")
 
-                                    if (userFolder.exists()) {
-                                        errorMessage = "Username already exists.\n\nΤο όνομα χρήστη υπάρχει ήδη."
-                                        showErrorDialog = true
-                                    } else {
-                                        val created = userFolder.mkdirs()
-                                        if (created) {
-                                            showSuccessDialog = true
-                                        } else {
-                                            errorMessage = "Failed to create folder: ${userFolder.absolutePath}"
-                                            showErrorDialog = true
-                                        }
-                                    }
-                                } catch (e: Exception) {
-                                    errorMessage = "Exception: ${e.localizedMessage}"
+                                if (userFolder.exists()) {
+                                    // Username already exists
+                                    errorMessage =
+                                        "Username already exists.\n\nΤο όνομα χρήστη υπάρχει ήδη."
                                     showErrorDialog = true
+                                } else {
+                                    val created = userFolder.mkdirs()
+                                    if (created) {
+                                        showSuccessDialog = true
+                                    } else {
+                                        errorMessage =
+                                            "Failed to create folder:\n${userFolder.absolutePath}"
+                                        showErrorDialog = true
+                                    }
                                 }
-                            } else {
-                                errorMessage = "Storage permission not granted. Please allow it and try again."
+                            } catch (e: Exception) {
+                                errorMessage =
+                                    "Exception: ${e.localizedMessage ?: "Unknown error"}"
                                 showErrorDialog = true
                             }
                         }
@@ -189,7 +183,12 @@ fun LoginScreen(
                         }
                     },
                     title = { Text("User Created | Ο χρήστης δημιουργήθηκε", fontSize = 18.sp * scale) },
-                    text = { Text("Your account has been successfully created.\n\nΕπιτυχής δημιουργία λογαριασμού", fontSize = 14.sp * scale) }
+                    text = {
+                        Text(
+                            "Your account has been successfully created.\n\nΕπιτυχής δημιουργία λογαριασμού",
+                            fontSize = 14.sp * scale
+                        )
+                    }
                 )
             }
 
