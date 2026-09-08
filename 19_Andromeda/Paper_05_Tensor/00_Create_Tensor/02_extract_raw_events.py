@@ -107,7 +107,7 @@ import numpy as np
 import pandas as pd
 
 
-PROJECT_ROOT_DEFAULT = Path("/home/ddimopoulos/Paper_05_Tensor/00_Create_Tensor")
+PROJECT_ROOT_DEFAULT = Path("/home/ddimopoulos/Paper_05_Tensor")
 MIMIC_ROOT_DEFAULT = Path("/home/ddimopoulos/Datasets/00_Datasets/mimic-iv-3_1")
 EICU_ROOT_DEFAULT = Path("/home/ddimopoulos/Datasets/00_Datasets/eicu-2_0")
 
