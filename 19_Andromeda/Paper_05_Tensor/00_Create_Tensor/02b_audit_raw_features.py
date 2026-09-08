@@ -8,7 +8,7 @@ cross-database harmonization or temporal aggregation.
 
 Canonical project root
 ----------------------
-/home/ddimopoulos/Paper_05_Tensor/00_Create_Tensor
+/home/ddimopoulos/Paper_05_Tensor
 
 Inputs
 ------
@@ -71,7 +71,7 @@ import pandas as pd
 
 
 PROJECT_ROOT_DEFAULT = Path(
-    "/home/ddimopoulos/Paper_05_Tensor/00_Create_Tensor"
+    "/home/ddimopoulos/Paper_05_Tensor"
 )
 RAW_DIR_DEFAULT = PROJECT_ROOT_DEFAULT / "data" / "02_raw_events"
 REPORT_DIR_DEFAULT = RAW_DIR_DEFAULT / "reports"
