@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-02_train_xgboost.py
+03_train_xgboost.py
 
 Five-fold XGBoost training using frozen Optuna hyperparameters for dynamic-landmark LOS and mortality prediction.
 
@@ -103,7 +103,7 @@ DEFAULT_PARAMS = {
     "max_bin": 256,
 }
 DEFAULT_NUM_BOOST_ROUND = 4000
-DEFAULT_EARLY_STOPPING = 100
+DEFAULT_EARLY_STOPPING = 200
 DEFAULT_INNER_ES_FRACTION = 0.10
 DEFAULT_TUNING_LANDMARK = 24
 
@@ -131,9 +131,9 @@ def load_task_params(
     outcome: str,
     variant: str,
     params_source: str,
-) -> Tuple[Dict, Optional[str]]:
+) -> Tuple[Dict, Optional[str], Optional[str]]:
     if params_source == "default":
-        return dict(DEFAULT_PARAMS), None
+        return dict(DEFAULT_PARAMS), None, None
 
     path = hyperparameter_file(
         modeling_root,
@@ -144,11 +144,23 @@ def load_task_params(
     if not path.is_file():
         raise FileNotFoundError(
             f"Missing frozen Optuna parameters: {path}. "
-            "Run 01_optuna_tune_xgboost.py first, or explicitly use "
+            "Run 02_optuna_tune_xgboost.py first, or explicitly use "
             "--params-source default."
         )
 
     payload = load_json(path)
+    if int(payload.get("tuning_landmark_hour", -1)) != int(tuning_landmark):
+        raise RuntimeError(f"Frozen parameter landmark mismatch in {path}.")
+    if str(payload.get("outcome")) != str(outcome):
+        raise RuntimeError(f"Frozen parameter outcome mismatch in {path}.")
+    if str(payload.get("variant")) != str(variant):
+        raise RuntimeError(f"Frozen parameter variant mismatch in {path}.")
+    fingerprint = payload.get("tuning_data_fingerprint_sha256")
+    if not fingerprint:
+        raise RuntimeError(
+            f"Frozen parameters lack revised tuning-data fingerprint: {path}. "
+            "Rerun 02_optuna_tune_xgboost.py."
+        )
     params = dict(
         payload["xgb_params"]
     )
@@ -166,7 +178,7 @@ def load_task_params(
             None,
         )
 
-    return params, str(path)
+    return params, str(path), str(fingerprint)
 
 
 def get_xgboost():
@@ -216,7 +228,7 @@ def configure_logging(
 
     fh = logging.FileHandler(
         log_dir
-        / "01_train_xgboost.log",
+        / "03_train_xgboost.log",
         mode="w",
         encoding="utf-8",
     )
@@ -248,7 +260,7 @@ def load_cached(
     if not matrix_path.is_file():
         raise FileNotFoundError(
             f"Missing matrix cache: {matrix_path}. "
-            "Run 00_prepare_model_matrices.py first."
+            "Run 01_prepare_model_matrices.py first."
         )
     return load_model_matrix(
         matrix_path,
@@ -1573,6 +1585,9 @@ def run_task(task: dict) -> dict:
         "hyperparameter_file": task.get(
             "hyperparameter_file"
         ),
+        "hyperparameter_tuning_data_fingerprint_sha256": task.get(
+            "hyperparameter_tuning_data_fingerprint_sha256"
+        ),
         "num_boost_round_max": int(
             task[
                 "num_boost_round"
@@ -1724,6 +1739,12 @@ def main() -> int:
     logger = configure_logging(
         modeling_root
     )
+    if args.workers <= 0 or args.xgb_threads <= 0:
+        raise ValueError("--workers and --xgb-threads must be positive.")
+    if args.num_boost_round <= 0 or args.early_stopping_rounds <= 0:
+        raise ValueError("Boosting and early-stopping rounds must be positive.")
+    if not (0.0 < args.inner_es_fraction < 0.5):
+        raise ValueError("--inner-es-fraction must be in (0, 0.5).")
 
     matrix_manifest_path = (
         modeling_root
@@ -1732,7 +1753,7 @@ def main() -> int:
     )
     if not matrix_manifest_path.is_file():
         raise FileNotFoundError(
-            f"{matrix_manifest_path}. Run 00_prepare_model_matrices.py first."
+            f"{matrix_manifest_path}. Run 01_prepare_model_matrices.py first."
         )
 
     matrix_manifest = pd.read_csv(
@@ -1741,7 +1762,6 @@ def main() -> int:
 
     tensor_manifest = load_json(
         project_root
-        / "00_Create_Tensor"
         / "data"
         / "06_numpy_cubes"
         / "06_tensor_manifest.json"
@@ -1778,16 +1798,16 @@ def main() -> int:
             if row.empty:
                 continue
 
-            available = bool(
-                row.iloc[0][
-                    "available"
-                ]
-            )
+            raw_available = row.iloc[0]["available"]
+            if isinstance(raw_available, str):
+                available = raw_available.strip().lower() in {"true", "1", "yes"}
+            else:
+                available = bool(raw_available)
             if not available:
                 continue
 
             for outcome in outcomes:
-                task_params, params_file = (
+                task_params, params_file, params_fingerprint = (
                     load_task_params(
                         modeling_root,
                         tuning_landmark=(
@@ -1832,6 +1852,9 @@ def main() -> int:
                         "hyperparameter_file": (
                             params_file
                         ),
+                        "hyperparameter_tuning_data_fingerprint_sha256": (
+                            params_fingerprint
+                        ),
                     }
                 )
 
@@ -1847,16 +1870,16 @@ def main() -> int:
         args.tuning_landmark,
     )
 
+    detected_cpus = os.cpu_count()
     if (
-        args.workers
-        * args.xgb_threads
-        > os.cpu_count()
+        detected_cpus is not None
+        and args.workers * args.xgb_threads > detected_cpus
     ):
         logger.warning(
             "workers*xgb_threads=%d exceeds detected CPUs=%s.",
             args.workers
             * args.xgb_threads,
-            os.cpu_count(),
+            detected_cpus,
         )
 
     results = []
@@ -1973,7 +1996,7 @@ def main() -> int:
     )
 
     logger.info(
-        "Training complete. Run 02_collect_metrics.py next."
+        "Training complete. Run 04_collect_metrics.py next."
     )
 
     return 0
