@@ -36,7 +36,7 @@ threads through --pigz-workers.
 
 Canonical project root
 ----------------------
-/home/ddimopoulos/Paper_05_Tensor/00_Create_Tensor
+/home/ddimopoulos/Paper_05_Tensor
 
 Default inputs
 --------------
@@ -2060,6 +2060,24 @@ def main() -> int:
     logger.info("Requested pigz workers: %d", args.pigz_workers)
     logger.info("pigz executable: %s", shutil.which("pigz") or "not found")
 
+    manifest_path = output_dir / "02_raw_event_manifest.json"
+
+    existing_results = {}
+
+    if manifest_path.is_file() and args.database != "all":
+        try:
+            with manifest_path.open("r", encoding="utf-8") as handle:
+                previous_manifest = json.load(handle)
+
+            previous_results = previous_manifest.get("results", {})
+            if isinstance(previous_results, dict):
+                existing_results = previous_results
+        except Exception as exc:
+            logger.warning(
+                "Could not reuse existing Stage-02 manifest results: %s",
+                exc,
+            )
+
     manifest = {
         "script": "02_extract_raw_events.py",
         "implementation": "bounded parallel producer-worker-writer",
@@ -2086,7 +2104,7 @@ def main() -> int:
         "harmonization_performed": False,
         "aggregation_performed": False,
         "missing_values_imputed": False,
-        "results": {},
+        "results": existing_results,
     }
 
     if args.database in {"all", "mimic"}:
@@ -2147,7 +2165,6 @@ def main() -> int:
             logger=logger,
         )
 
-    manifest_path = output_dir / "02_raw_event_manifest.json"
     with manifest_path.open("w", encoding="utf-8") as handle:
         json.dump(
             manifest,
