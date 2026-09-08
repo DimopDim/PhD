@@ -143,7 +143,7 @@ import pandas as pd
 
 
 PROJECT_ROOT_DEFAULT = Path(
-    "/home/ddimopoulos/Paper_05_Tensor/00_Create_Tensor"
+    "/home/ddimopoulos/Paper_05_Tensor"
 )
 STAGE05_DIR_DEFAULT = PROJECT_ROOT_DEFAULT / "data" / "05_splits"
 OUTPUT_DIR_DEFAULT = PROJECT_ROOT_DEFAULT / "data" / "06_numpy_cubes"
