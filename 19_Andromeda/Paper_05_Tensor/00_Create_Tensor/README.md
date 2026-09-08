@@ -41,6 +41,9 @@ The pipeline expects the following database versions:
 
 These databases are available through PhysioNet subject to their respective access requirements and data-use agreements.
 
+For the revised primary analysis, Stage 01 retains **3,635 MIMIC-IV patients** and **5,419 eICU-CRD patients** after requiring a valid positive ICU LOS and applying no upper LOS restriction. The frozen revised MIMIC split contains **2,907 development** and **728 internal-test** patients. eICU remains external only; hospital mortality status is known for 5,344 of 5,419 eICU patients.
+
+
 ### Expected raw-data layout
 
 The commands below assume the following server paths:
@@ -64,8 +67,11 @@ You may use different paths by changing the shell variables shown below or by pa
 A recommended repository structure is:
 
 ```text
-00_Create_Tensor/
-├── README.md
+Paper_05_Tensor/
+├── data/                         # generated canonical outputs (excluded from Git)
+├── revision_audit/              # optional non-patient-level audit metadata only
+└── 00_Create_Tensor/
+    ├── README.md
 ├── 01_build_stroke_cohorts.py
 ├── 02_extract_raw_events.py
 ├── 02b_audit_raw_features.py
@@ -75,23 +81,17 @@ A recommended repository structure is:
 ├── 05_create_splits_and_encode.py
 ├── 05b_tripod_ai_cohort_characteristics.py
 ├── 06_build_multilandmark_tensor_cubes.py
-│
-├── imports/
-│   ├── mimic_icd_stroke.csv
-│   ├── eicu_icd_stroke.csv
-│   ├── concept_schema_76.csv
-│   ├── feature_mapping_76.csv
-│   └── pipeline_config.json
-│
-└── data/
-    ├── 01_cohorts/
-    ├── 02_raw_events/
-    ├── 03_harmonized/
-    ├── 04_cumulative_windows/
-    ├── 05_splits/
-    │   └── reports/
-    │       └── tripod_ai/
-    └── 06_numpy_cubes/
+    │
+    ├── imports/
+    │   ├── mimic_icd_stroke.csv
+    │   ├── eicu_icd_stroke.csv
+    │   ├── concept_schema_75.csv
+    │   ├── feature_mapping_75.csv
+    │   └── pipeline_config.json
+    │
+    └── [pipeline scripts]
+
+Generated outputs are written under `$PROJECT_ROOT/data/`, not inside the Git source directory.
 ```
 
 The `data/` directory is generated automatically and should normally be excluded from Git because it may contain derived patient-level data.
@@ -118,20 +118,20 @@ imports/eicu_icd_stroke.csv
 Inside `imports/`:
 
 ```text
-concept_schema_76.csv
-feature_mapping_76.csv
+concept_schema_75.csv
+feature_mapping_75.csv
 pipeline_config.json
 ```
 
-The current implementation uses a locked schema of **76 time-varying clinical concepts**. With the primary four summary operators (`mean`, `median`, `min`, `max`), Stage 04 produces:
+The current implementation uses a locked schema of **75 time-varying clinical concepts**. With the primary four summary operators (`mean`, `median`, `min`, `max`), Stage 04 produces:
 
 ```text
-76 concepts × 4 aggregations = 304 clinical descriptors per temporal endpoint
+75 concepts × 4 aggregations = 300 clinical descriptors per temporal endpoint
 ```
 
 Demographic predictors are appended later in Stage 05 using a categorical schema fitted only on the MIMIC training partition.
 
-For the current locked experiment, Stage 05 produces **337 base predictors per endpoint**: **304 clinical + 33 demographic predictors**. The demographic width is determined from the frozen MIMIC-training schema and must be verified from the generated Stage-05 manifest/feature-order files rather than inferred from stale comments in older code versions.
+For the current locked experiment, Stage 05 produces **334 base predictors per endpoint**: **300 clinical + 34 demographic predictors**. The demographic width is determined from the frozen MIMIC-training schema and must be verified from the generated Stage-05 manifest/feature-order files rather than inferred from stale comments in older code versions.
 
 ---
 
@@ -181,19 +181,20 @@ sudo apt-get install pigz
 
 ## 6. Define paths once
 
-The scripts from Stage 02 onward use the following directory as the canonical project root:
+The revised pipeline uses `/home/ddimopoulos/Paper_05_Tensor` as the canonical project/data root. The executable scripts and controlled `imports/` files remain in the `00_Create_Tensor` source directory:
 
 ```bash
-export PROJECT_ROOT=/home/ddimopoulos/Paper_05_Tensor/00_Create_Tensor
+export PROJECT_ROOT=/home/ddimopoulos/Paper_05_Tensor
+export CODE_ROOT="$PROJECT_ROOT/00_Create_Tensor"
 export MIMIC_ROOT=/home/ddimopoulos/Datasets/00_Datasets/mimic-iv-3_1
 export EICU_ROOT=/home/ddimopoulos/Datasets/00_Datasets/eicu-2_0
-export MIMIC_ICD="$PROJECT_ROOT/imports/mimic_icd_stroke.csv"
-export EICU_ICD="$PROJECT_ROOT/imports/eicu_icd_stroke.csv"
+export MIMIC_ICD="$CODE_ROOT/imports/mimic_icd_stroke.csv"
+export EICU_ICD="$CODE_ROOT/imports/eicu_icd_stroke.csv"
 
-cd "$PROJECT_ROOT"
+cd "$CODE_ROOT"
 ```
 
-> **Important:** `01_build_stroke_cohorts.py` retains older built-in path defaults. For reproducibility, the commands in this README pass the project root, database roots, and the two ICD-list paths explicitly so that the exact controlled inputs used by the current experiment are unambiguous.
+> **Important:** the revised scripts use the canonical parent project root for generated data. The commands below still pass paths explicitly so that the controlled raw-data and ICD inputs are unambiguous.
 
 ---
 
@@ -209,7 +210,7 @@ Key rules include:
 - eICU diagnosis matching against `diagnosis.icd9code`.
 - ICD codes are normalized before matching.
 - Only one eligible ICU stay per patient is retained.
-- ICU stays longer than 10 days are excluded by default.
+- Retained ICU stays must have a valid positive ICU length of stay; the revised primary cohort applies **no upper ICU-LOS restriction**.
 - All eligible stays are also retained for auditing.
 
 Run:
@@ -222,8 +223,7 @@ python 01_build_stroke_cohorts.py \
   --mimic-icd "$MIMIC_ICD" \
   --eicu-icd "$EICU_ICD" \
   --database all \
-  --chunksize 500000 \
-  --max-icu-los-days 10
+  --chunksize 500000
 ```
 
 Main output directory:
@@ -329,7 +329,7 @@ Review these outputs before proceeding to Stage 03, especially if the raw databa
 
 ## Stage 03 — Harmonize events and demographics
 
-Stage 03 maps raw database-specific measurements onto the controlled 76-concept schema.
+Stage 03 maps raw database-specific measurements onto the controlled 75-concept schema.
 
 Key rules include:
 
@@ -343,6 +343,7 @@ Key rules include:
 - selected eICU unit conversions are applied explicitly;
 - MIMIC GCS is reconstructed from Eye + Motor + Verbal only when all three components are available at the same timestamp;
 - demographic variables are harmonized but not yet one-hot encoded.
+- the non-equivalent cross-database `ETOH` concept is excluded from the revised primary harmonized feature set.
 
 Run:
 
@@ -497,7 +498,7 @@ This audit motivates the dynamic landmark formulation used in Stage 05.
 
 ## Stage 05 — Create split, landmark risk sets, targets, and demographic encoding
 
-Stage 05 creates one fixed patient-level MIMIC development/test assignment and reuses that assignment at every landmark.
+Stage 05 creates the revised patient-level MIMIC development/test assignment and reuses that assignment at every landmark. To avoid reshuffling a previously evaluated holdout set, the original assignments of the 3,249 legacy MIMIC patients are preserved exactly; only the 386 newly included patients introduced by removal of the 10-day LOS cap are assigned deterministically (seed 42), stratified by mortality, at approximately 80/20 development/test.
 
 Default landmarks:
 
@@ -532,7 +533,8 @@ python 05_create_splits_and_encode.py \
   --landmarks 1,4,8,12,16,20,24,36,48 \
   --seed 42 \
   --train-fraction 0.80 \
-  --test-fraction 0.20
+  --test-fraction 0.20 \
+  --legacy-split-file "$PROJECT_ROOT/data/revision_audit/full_cohort_split_assignments_original.csv"
 ```
 
 Main outputs:
@@ -544,6 +546,7 @@ data/05_splits/
 ├── 05_multilandmark_manifest.json
 ├── reports/
 │   ├── full_cohort_split_assignments.csv
+│   ├── legacy_split_preservation_audit.csv
 │   ├── demographic_category_counts.csv
 │   ├── demographic_encoding_audit.csv
 │   ├── feature_order.csv
@@ -559,6 +562,9 @@ data/05_splits/
 ```
 
 The MIMIC **training/development partition** is the only source used for fitting data-dependent preprocessing schemas. Five-fold model cross-validation is intended to be performed later within that development partition.
+
+For the revised primary analysis, the realized Stage-05 schema is **300 clinical + 34 demographic = 334 predictors per endpoint** (age 1, gender 3, race 30). The generated Stage-05 manifest and `feature_order.json` are authoritative.
+
 
 ---
 
@@ -584,9 +590,9 @@ python 05b_tripod_ai_cohort_characteristics.py \
 The current script expects the frozen base-cohort counts:
 
 ```text
-MIMIC-IV development: 2599
-MIMIC-IV test:         650
-eICU-CRD external:    4943
+MIMIC-IV development: 2907
+MIMIC-IV test:         728
+eICU-CRD external:    5419
 ```
 
 A count mismatch causes the script to fail, which is intentional for exact reproduction of the reported experiment. For exploratory reruns on a deliberately different cohort definition, use `--no-strict-counts` to warn rather than fail:
@@ -719,16 +725,17 @@ data/06_numpy_cubes/06_tensor_manifest.json
 
 # 8. Exact execution sequence for reproducing the data-preparation experiment
 
-The following commands reproduce the current data-preparation/tensor experiment from authorized raw MIMIC-IV/eICU data and regenerate the TRIPOD+AI cohort-reporting artifacts. Run them from a clean output tree when an exact end-to-end replication is required:
+The following commands reproduce the current data-preparation/tensor experiment from authorized raw MIMIC-IV/eICU data and regenerate the TRIPOD+AI cohort-reporting artifacts. Run them from the source directory while writing generated artifacts to the canonical parent project root. Use a clean output tree when an exact end-to-end replication is required:
 
 ```bash
-export PROJECT_ROOT=/home/ddimopoulos/Paper_05_Tensor/00_Create_Tensor
+export PROJECT_ROOT=/home/ddimopoulos/Paper_05_Tensor
+export CODE_ROOT="$PROJECT_ROOT/00_Create_Tensor"
 export MIMIC_ROOT=/home/ddimopoulos/Datasets/00_Datasets/mimic-iv-3_1
 export EICU_ROOT=/home/ddimopoulos/Datasets/00_Datasets/eicu-2_0
-export MIMIC_ICD="$PROJECT_ROOT/imports/mimic_icd_stroke.csv"
-export EICU_ICD="$PROJECT_ROOT/imports/eicu_icd_stroke.csv"
+export MIMIC_ICD="$CODE_ROOT/imports/mimic_icd_stroke.csv"
+export EICU_ICD="$CODE_ROOT/imports/eicu_icd_stroke.csv"
 
-cd "$PROJECT_ROOT"
+cd "$CODE_ROOT"
 
 # Stage 01
 python 01_build_stroke_cohorts.py \
@@ -738,8 +745,7 @@ python 01_build_stroke_cohorts.py \
   --mimic-icd "$MIMIC_ICD" \
   --eicu-icd "$EICU_ICD" \
   --database all \
-  --chunksize 500000 \
-  --max-icu-los-days 10
+  --chunksize 500000
 
 # Stage 02 - MIMIC
 python 02_extract_raw_events.py \
@@ -811,7 +817,8 @@ python 05_create_splits_and_encode.py \
   --landmarks 1,4,8,12,16,20,24,36,48 \
   --seed 42 \
   --train-fraction 0.80 \
-  --test-fraction 0.20
+  --test-fraction 0.20 \
+  --legacy-split-file "$PROJECT_ROOT/data/revision_audit/full_cohort_split_assignments_original.csv"
 
 # Stage 05b - TRIPOD+AI cohort reporting (strict current-experiment counts)
 python 05b_tripod_ai_cohort_characteristics.py \
@@ -840,7 +847,7 @@ Check:
 data/01_cohorts/01_cohort_manifest.json
 ```
 
-Confirm the database versions, ICD files, LOS exclusion rule, and final cohort sizes.
+Confirm the database versions, ICD files, positive-LOS eligibility rule, absence of an upper LOS restriction in the primary cohort, and final cohort sizes.
 
 ### Raw extraction
 
@@ -882,7 +889,7 @@ Check:
 data/04_cumulative_windows/leakage_audit/leakage_metrics.csv
 ```
 
-The complete-cohort missingness audit should be considered when interpreting any model that includes patients discharged within the observation horizon.
+The complete-cohort missingness audit should be considered when interpreting any model that includes patients discharged within the observation horizon. In the revised run, the early-exit missingness-only probe retained near-perfect LOS recovery (R² ≈ 0.999 MIMIC-IV and 0.997 eICU), while performance was worse than the cohort-mean reference in the valid 48-hour risk sets.
 
 ### Landmark risk sets
 
@@ -905,7 +912,7 @@ data/05_splits/reports/tripod_ai/tripod_ai_item20b_cohort_characteristics_wide.c
 data/05_splits/reports/tripod_ai/tripod_ai_item20c_demographic_outcome_smd.csv
 ```
 
-For the locked experiment, the manifest should report 2,599 MIMIC-IV development patients, 650 MIMIC-IV test patients, and 4,943 eICU-CRD external patients. The reporting-only race grouping must not be confused with the model's frozen race encoding.
+For the locked experiment, the manifest should report 2,907 MIMIC-IV development patients, 728 MIMIC-IV test patients, and 5,419 eICU-CRD external patients. The reporting-only race grouping must not be confused with the model's frozen race encoding.
 
 ### Final tensor construction
 
@@ -926,9 +933,9 @@ These audits verify that no future native endpoint is copied backward, target ro
 
 The implementation includes several explicit reproducibility and leakage protections:
 
-- deterministic cohort-selection rules;
+- deterministic cohort-selection rules with positive ICU LOS and no upper LOS restriction in the revised primary cohort;
 - patient-level rather than row-level splitting;
-- fixed random seed (`42`) for the MIMIC split and leakage-audit model;
+- original MIMIC split assignments frozen for legacy patients; deterministic mortality-stratified assignment (seed `42`) only for newly included patients; seed `42` also used for the leakage-audit model;
 - eICU reserved for external evaluation;
 - no eICU-based fitting of demographic categories;
 - no clinical imputation or scaling during tensor construction;
@@ -1004,7 +1011,7 @@ Record the corresponding Git commit hash in the final experimental manifest or m
 
 # 14. Important implementation note
 
-The current codebase implements the corrected **76-concept / 304-clinical-descriptor** pipeline, a **337-predictor frozen base schema** for the locked experiment, and a leakage-safe dynamic landmark design. Stage-05 `feature_order.json` / `reports/feature_order.csv` and the Stage-05 manifest are the authoritative sources for the realized predictor width. Older comments or configuration fragments that state 341 predictors belong to a stale demographic-width expectation and should not be used in the manuscript or reproduction notes.
+The current codebase implements the corrected **75-concept / 300-clinical-descriptor** pipeline, a **334-predictor frozen base schema** for the locked experiment, and a leakage-safe dynamic landmark design. Stage-05 `feature_order.json` / `reports/feature_order.csv` and the Stage-05 manifest are the authoritative sources for the realized predictor width. Older comments or configuration fragments that state 341 predictors belong to a stale demographic-width expectation and should not be used in the manuscript or reproduction notes.
 
 If numerical results from an earlier manuscript draft were generated with a different feature count, demographic width, split definition, or complete-cohort formulation, that earlier implementation should be preserved under a separate Git tag/release rather than mixed with this corrected pipeline. Reproducibility requires the code release, configuration files, generated manifests, and reported manuscript results to correspond to the same analytical version.
 
