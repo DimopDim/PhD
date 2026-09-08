@@ -51,11 +51,11 @@ import numpy as np
 import pandas as pd
 
 
-PROJECT_ROOT_DEFAULT = Path("/home/ddimopoulos/Paper_05_Tensor/00_Create_Tensor")
+PROJECT_ROOT_DEFAULT = Path("/home/ddimopoulos/Paper_05_Tensor")
 EXPECTED_COUNTS = {
-    "MIMIC-IV development": 2599,
-    "MIMIC-IV test": 650,
-    "eICU-CRD external": 4943,
+    "MIMIC-IV development": 2907,
+    "MIMIC-IV test": 728,
+    "eICU-CRD external": 5419,
 }
 COHORT_ORDER = [
     "MIMIC-IV development",
@@ -268,6 +268,17 @@ def load_inputs(project_root: Path, logger: logging.Logger) -> Dict[str, pd.Data
         df["age"] = pd.to_numeric(df["age"], errors="coerce")
         df["icu_los_days"] = pd.to_numeric(df["icu_los_days"], errors="coerce")
         df["hospital_expire_flag"] = pd.to_numeric(df["hospital_expire_flag"], errors="coerce")
+
+        if df["icu_los_days"].isna().any():
+            raise ValueError(
+                f"{name}: missing ICU LOS values detected in retained cohort"
+            )
+
+        if (df["icu_los_days"] <= 0).any():
+            raise ValueError(
+                f"{name}: non-positive ICU LOS values detected in retained cohort"
+            )
+
         df["sex_report"] = df["gender"].map(broad_sex)
         df["race_report"] = df["race"].map(broad_race)
         logger.info(
@@ -612,7 +623,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--no-strict-counts",
         action="store_true",
-        help="Warn rather than fail if base cohort counts differ from 2599/650/4943.",
+        help="Warn rather than fail if base cohort counts differ from 2907/728/5419.",
     )
     return p
 
