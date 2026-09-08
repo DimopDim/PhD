@@ -5,6 +5,12 @@
 
 Target-leakage audit for the Stage-04 cumulative-window representation.
 
+Primary revised feature space
+-----------------------------
+The revised primary pipeline uses 75 harmonized clinical concepts
+(legacy ETOH excluded) x four cumulative aggregations, yielding
+300 clinical descriptors at each endpoint.
+
 Question
 --------
 Can ICU LOS be inferred from the temporal NaN pattern alone, even when LOS,
@@ -31,14 +37,14 @@ A. Structural oracle (diagnostic only; NEVER a valid predictor)
    mathematically linked to LOS.
 
 B. Implicit NaN-tail detector (no LOS/discharge metadata in predictors)
-   Uses only the 304 clinical columns to compute:
+   Uses only the 300 clinical columns to compute:
        last endpoint containing any finite clinical value.
    This tests whether the structural boundary is visible from X itself.
 
 C. Missingness-only ML audit
    Discards every clinical value and retains only 48 endpoint-wise observed
    fractions:
-       fraction of the 304 clinical descriptors that are finite at hour h.
+       fraction of the 300 clinical descriptors that are finite at hour h.
    An ExtraTreesRegressor is evaluated with patient-level out-of-fold CV.
 
 Three cohorts are evaluated:
@@ -125,12 +131,8 @@ import numpy as np
 import pandas as pd
 
 
-PROJECT_ROOT_DEFAULT = Path(
-    "/home/ddimopoulos/Paper_05_Tensor/00_Create_Tensor"
-)
-WINDOW_DIR_DEFAULT = (
-    PROJECT_ROOT_DEFAULT / "data" / "04_cumulative_windows"
-)
+PROJECT_ROOT_DEFAULT = Path("/home/ddimopoulos/Paper_05_Tensor")
+WINDOW_DIR_DEFAULT = PROJECT_ROOT_DEFAULT / "data" / "04_cumulative_windows"
 OUTPUT_DIR_DEFAULT = WINDOW_DIR_DEFAULT / "leakage_audit"
 
 CV_FOLDS_DEFAULT = 5
@@ -193,17 +195,39 @@ def load_feature_order(window_dir: Path) -> List[str]:
 
     payload = json.loads(path.read_text(encoding="utf-8"))
     feature_columns = payload.get("feature_columns")
+    concepts = payload.get("clinical_concepts")
+    aggregations = payload.get("aggregations")
+    reported_count = payload.get("clinical_feature_count")
 
     if not isinstance(feature_columns, list):
         raise ValueError(
             f"{path} does not contain a valid feature_columns list."
         )
 
-    if len(feature_columns) != 304:
+    if not isinstance(concepts, list) or len(concepts) != 75:
+        raise ValueError(
+            f"Leakage audit expects 75 Stage-04 clinical concepts; "
+            f"found {len(concepts) if isinstance(concepts, list) else 'invalid'}."
+        )
+
+    if aggregations != ["mean", "median", "min", "max"]:
+        raise ValueError(
+            "Leakage audit expects the locked primary Stage-04 "
+            "aggregation order ['mean', 'median', 'min', 'max']; "
+            f"found {aggregations}."
+        )
+
+    if len(feature_columns) != 300:
         raise ValueError(
             f"Leakage audit expects the locked primary Stage-04 "
-            f"representation with 304 clinical columns; found "
+            f"representation with 300 clinical columns; found "
             f"{len(feature_columns)}."
+        )
+
+    if reported_count is not None and int(reported_count) != 300:
+        raise ValueError(
+            f"{path} reports clinical_feature_count={reported_count}; "
+            "expected 300."
         )
 
     if len(set(feature_columns)) != len(feature_columns):
@@ -1401,7 +1425,7 @@ def main() -> int:
         "los_or_discharge_metadata_used_as_ml_predictors": False,
         "ml_predictors": (
             "48 observed-fraction features, one per hourly endpoint; "
-            "each equals finite clinical descriptor count / 304"
+            "each equals finite clinical descriptor count / 300"
         ),
         "diagnostic_oracle_uses_window_available": True,
         "diagnostic_oracle_is_not_a_model_predictor": True,
