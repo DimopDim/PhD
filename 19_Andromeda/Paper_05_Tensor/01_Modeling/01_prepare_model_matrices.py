@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-00_prepare_model_matrices.py
+01_prepare_model_matrices.py
 
 Create and cache model-ready XGBoost matrices from Stage-06 tensors.
 
@@ -29,7 +29,9 @@ import pandas as pd
 from modeling_common import (
     VALID_VARIANTS,
     build_model_matrix,
+    expected_model_feature_count,
     load_json,
+    load_model_matrix,
     load_tensor,
     matrix_cache_paths,
     parse_csv_arg,
@@ -44,7 +46,6 @@ PROJECT_ROOT_DEFAULT = Path(
 )
 TENSOR_ROOT_DEFAULT = (
     PROJECT_ROOT_DEFAULT
-    / "00_Create_Tensor"
     / "data"
     / "06_numpy_cubes"
 )
@@ -87,7 +88,7 @@ def configure_logging(
 
     fh = logging.FileHandler(
         log_dir
-        / "00_prepare_model_matrices.log",
+        / "01_prepare_model_matrices.log",
         mode="w",
         encoding="utf-8",
     )
@@ -149,7 +150,6 @@ def main() -> int:
         .resolve()
         if args.tensor_root is not None
         else project_root
-        / "00_Create_Tensor"
         / "data"
         / "06_numpy_cubes"
     )
@@ -166,9 +166,19 @@ def main() -> int:
         modeling_root
     )
 
+    if not tensor_root.is_dir():
+        raise FileNotFoundError(
+            f"Stage-06 tensor root not found: {tensor_root}"
+        )
+
+    manifest_path = tensor_root / "06_tensor_manifest.json"
+    if not manifest_path.is_file():
+        raise FileNotFoundError(
+            f"Stage-06 manifest not found: {manifest_path}"
+        )
+
     manifest = load_json(
-        tensor_root
-        / "06_tensor_manifest.json"
+        manifest_path
     )
     landmarks = parse_landmarks(
         args.landmarks,
@@ -211,6 +221,13 @@ def main() -> int:
             "mimic",
             "train",
         )
+        logger.info(
+            "%dh schema | clinical=%d | demographic=%d | base=%d",
+            landmark,
+            reference.clinical_count,
+            reference.demographic_count,
+            reference.clinical_count + reference.demographic_count,
+        )
 
         for variant in variants:
             available = variant_available(
@@ -228,6 +245,12 @@ def main() -> int:
                         "landmark_hour": landmark,
                         "variant": variant,
                         "available": False,
+                        "clinical_feature_count": reference.clinical_count,
+                        "demographic_feature_count": reference.demographic_count,
+                        "base_feature_count": (
+                            reference.clinical_count
+                            + reference.demographic_count
+                        ),
                         "feature_count": np.nan,
                     }
                 )
@@ -246,20 +269,6 @@ def main() -> int:
                     )
                 )
 
-                if (
-                    matrix_path.is_file()
-                    and feature_path.is_file()
-                    and not args.overwrite
-                ):
-                    logger.info(
-                        "%dh/%s/%s_%s exists; skipped.",
-                        landmark,
-                        variant,
-                        database,
-                        split_name,
-                    )
-                    continue
-
                 tensor = load_tensor(
                     tensor_root,
                     landmark,
@@ -276,65 +285,116 @@ def main() -> int:
                         f"{landmark}h/{variant}/{database}/{split_name}"
                     )
 
-                matrix = build_model_matrix(
-                    tensor,
+                expected_width = expected_model_feature_count(
+                    tensor.clinical_count,
+                    tensor.demographic_count,
                     variant,
                 )
 
-                if expected_features is None:
-                    expected_features = (
-                        matrix.feature_names
+                cache_exists = (
+                    matrix_path.is_file()
+                    and feature_path.is_file()
+                )
+                partial_cache = (
+                    matrix_path.is_file()
+                    != feature_path.is_file()
+                )
+                if partial_cache and not args.overwrite:
+                    raise RuntimeError(
+                        f"Incomplete cache for "
+                        f"{landmark}h/{variant}/{database}/{split_name}: "
+                        f"matrix={matrix_path.is_file()}, "
+                        f"features={feature_path.is_file()}. "
+                        "Use --overwrite after checking the cache."
                     )
-                elif (
-                    matrix.feature_names
-                    != expected_features
-                ):
+
+                if cache_exists and not args.overwrite:
+                    cached = load_model_matrix(
+                        matrix_path,
+                        feature_path,
+                    )
+                    if cached.X.shape[0] != len(tensor.patient_id):
+                        raise RuntimeError(
+                            f"Stale cache row count for "
+                            f"{landmark}h/{variant}/{database}/{split_name}: "
+                            f"cached={cached.X.shape[0]}, "
+                            f"Stage06={len(tensor.patient_id)}. "
+                            "Rerun with --overwrite."
+                        )
+                    if cached.X.shape[1] != expected_width:
+                        raise RuntimeError(
+                            f"Stale cache feature width for "
+                            f"{landmark}h/{variant}/{database}/{split_name}: "
+                            f"cached={cached.X.shape[1]}, "
+                            f"expected={expected_width}. "
+                            "Rerun with --overwrite."
+                        )
+                    if not np.array_equal(
+                        cached.patient_id,
+                        tensor.patient_id,
+                    ):
+                        raise RuntimeError(
+                            f"Stale cache patient alignment for "
+                            f"{landmark}h/{variant}/{database}/{split_name}. "
+                            "Rerun with --overwrite."
+                        )
+                    matrix = cached
+                    logger.info(
+                        "%dh/%s/%s_%s cache validated | X=%s",
+                        landmark,
+                        variant,
+                        database,
+                        split_name,
+                        matrix.X.shape,
+                    )
+                else:
+                    matrix = build_model_matrix(
+                        tensor,
+                        variant,
+                    )
+                    if matrix.X.shape[1] != expected_width:
+                        raise RuntimeError(
+                            f"Unexpected matrix width for "
+                            f"{landmark}h/{variant}/{database}/{split_name}: "
+                            f"built={matrix.X.shape[1]}, "
+                            f"expected={expected_width}."
+                        )
+
+                    save_model_matrix(
+                        matrix,
+                        matrix_path,
+                        feature_path,
+                    )
+
+                    logger.info(
+                        "%dh/%s/%s_%s | X=%s | NaN=%.2f%%",
+                        landmark,
+                        variant,
+                        database,
+                        split_name,
+                        matrix.X.shape,
+                        float(np.isnan(matrix.X).mean() * 100.0),
+                    )
+
+                if expected_features is None:
+                    expected_features = matrix.feature_names
+                elif matrix.feature_names != expected_features:
                     raise RuntimeError(
                         f"Feature schema mismatch across cohorts: "
                         f"{landmark}h/{variant}"
                     )
-
-                save_model_matrix(
-                    matrix,
-                    matrix_path,
-                    feature_path,
-                )
-
-                logger.info(
-                    "%dh/%s/%s_%s | X=%s | NaN=%.2f%%",
-                    landmark,
-                    variant,
-                    database,
-                    split_name,
-                    matrix.X.shape,
-                    float(
-                        np.isnan(
-                            matrix.X
-                        ).mean()
-                        * 100.0
-                    ),
-                )
-
-            if expected_features is None:
-                # Existing cache path. Read the feature file.
-                _, feature_path = (
-                    matrix_cache_paths(
-                        modeling_root,
-                        landmark,
-                        variant,
-                        "mimic",
-                        "train",
-                    )
-                )
-                expected_features = load_json(
-                    feature_path
-                )["feature_names"]
 
             rows.append(
                 {
                     "landmark_hour": landmark,
                     "variant": variant,
                     "available": True,
+                    "clinical_feature_count": reference.clinical_count,
+                    "demographic_feature_count": reference.demographic_count,
+                    "base_feature_count": (
+                        reference.clinical_count
+                        + reference.demographic_count
+                    ),
                     "feature_count": len(
                         expected_features
                     ),
