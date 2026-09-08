@@ -43,7 +43,9 @@ Important:
       unitvisitnumber -> patienthealthsystemstayid -> patientunitstayid
   and records this rule in the manifest. The all-eligible-stays file is also
   saved, so this choice can be audited or changed before model training.
-- ICU stays > max_icu_los_days are excluded by default (10 days, manuscript rule).
+- Completed ICU stays must have a finite positive ICU LOS.
+- No upper ICU LOS restriction is applied in the primary analysis.
+- An optional upper LOS limit can be supplied for sensitivity analyses.
 """
 
 from __future__ import annotations
@@ -64,8 +66,12 @@ PROJECT_ROOT_DEFAULT = Path("/home/ddimopoulos/Paper_05_Tensor")
 MIMIC_ROOT_DEFAULT = Path("/home/ddimopoulos/Datasets/00_Datasets/mimic-iv-3_1")
 EICU_ROOT_DEFAULT = Path("/home/ddimopoulos/Datasets/00_Datasets/eicu-2_0")
 
-MIMIC_ICD_DEFAULT = PROJECT_ROOT_DEFAULT / "mimic_icd_stroke.csv"
-EICU_ICD_DEFAULT = PROJECT_ROOT_DEFAULT / "eicu_icd_stroke.csv"
+MIMIC_ICD_DEFAULT = (
+    PROJECT_ROOT_DEFAULT / "00_Create_Tensor" / "imports" / "mimic_icd_stroke.csv"
+)
+EICU_ICD_DEFAULT = (
+    PROJECT_ROOT_DEFAULT / "00_Create_Tensor" / "imports" / "eicu_icd_stroke.csv"
+)
 OUTPUT_DEFAULT = PROJECT_ROOT_DEFAULT / "data" / "01_cohorts"
 
 
@@ -625,10 +631,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--max-icu-los-days",
         type=float,
-        default=10.0,
+        default=-1.0,
         help=(
-            "Exclude ICU stays longer than this value. "
-            "Use a negative value to disable. Default: 10 days."
+            "Optional maximum ICU LOS in days. "
+            "Use a negative value for no upper restriction "
+            "(primary analysis; default). "
+            "For example, use 10 for the <=10-day sensitivity analysis."
         ),
     )
     parser.add_argument(
@@ -650,12 +658,12 @@ def main() -> int:
     mimic_icd = (
         args.mimic_icd.expanduser().resolve()
         if args.mimic_icd is not None
-        else project_root / "mimic_icd_stroke.csv"
+        else project_root / "00_Create_Tensor" / "imports" / "mimic_icd_stroke.csv"
     )
     eicu_icd = (
         args.eicu_icd.expanduser().resolve()
         if args.eicu_icd is not None
-        else project_root / "eicu_icd_stroke.csv"
+        else project_root / "00_Create_Tensor" / "imports" / "eicu_icd_stroke.csv"
     )
     output_dir = (
         args.output_dir.expanduser().resolve()
