@@ -1,0 +1,115 @@
+source ~/venvs/andromeda/bin/activate
+
+=======================================================
+01_build_stroke_cohorts.py
+=======================================================
+
+cd /home/ddimopoulos/Paper_05_Tensor/00_Create_Tensor
+
+python 01_build_stroke_cohorts.py
+
+
+
+=======================================================
+02_extract_raw_events.py
+=======================================================
+
+cd /home/ddimopoulos/Paper_05_Tensor/00_Create_Tensor
+
+python 02_extract_raw_events.py \
+  --database mimic \
+  --workers 10 \
+  --chunksize 500000 \
+  --max-in-flight 20 \
+  --pigz-workers 4
+  
+  
+  
+python 02_extract_raw_events.py \
+  --database eicu \
+  --workers 10 \
+  --chunksize 500000 \
+  --max-in-flight 20 \
+  --pigz-workers 4
+  
+  
+
+=======================================================
+02b_audit_raw_features.py
+=======================================================
+
+cd /home/ddimopoulos/Paper_05_Tensor/00_Create_Tensor
+
+python 02b_audit_raw_features.py \
+  --database all \
+  --batch-rows 250000 \
+  --workers 4 \
+  --strict
+  
+  
+=======================================================
+03_harmonize_events.py
+=======================================================
+
+cd /home/ddimopoulos/Paper_05_Tensor/00_Create_Tensor
+
+python 03_harmonize_events.py \
+  --database all \
+  --batch-rows 250000 \
+  --fail-on-review
+  
+
+=======================================================
+04_build_cumulative_windows.py
+=======================================================
+
+python 04_build_cumulative_windows.py \
+  --database all \
+  --workers 10 \
+  --patients-per-task 64
+  
+  
+  
+=======================================================
+04b_audit_temporal_leakage.py
+======================================================= 
+
+python 04b_audit_temporal_leakage.py \
+  --database all \
+  --cv-folds 5 \
+  --trees 300 \
+  --model-workers 10
+
+
+=======================================================
+05_create_splits_and_encode.py
+=======================================================
+
+
+cd /home/ddimopoulos/Paper_05_Tensor/00_Create_Tensor
+
+python 05_create_splits_and_encode.py \
+  --landmarks 1,4,8,12,16,20,24,36,48 \
+  --seed 42 \
+  --train-fraction 0.80 \
+  --test-fraction 0.20 \
+  --legacy-split-file /home/ddimopoulos/Paper_05_Tensor/data/revision_audit/full_cohort_split_assignments_original.csv
+
+
+=======================================================
+05b_tripod_ai_cohort_characteristics.py
+=======================================================
+
+cd /home/ddimopoulos/Paper_05_Tensor/00_Create_Tensor
+
+python 05b_tripod_ai_cohort_characteristics.py
+
+
+=======================================================
+06_build_multilandmark_tensor_cubes.py
+=======================================================
+
+cd /home/ddimopoulos/Paper_05_Tensor/00_Create_Tensor
+
+python 06_build_multilandmark_tensor_cubes.py \
+  --landmarks 1,4,8,12,16,20,24,36,48
