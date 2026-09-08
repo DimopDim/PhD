@@ -268,11 +268,17 @@ def build_mimic_cohort(
     eligible = eligible.dropna(subset=["subject_id", "hadm_id", "stay_id", "intime"])
 
     n_before_los = len(eligible)
+    
+    # A valid completed ICU stay must always have a finite positive LOS.
+    eligible = eligible[
+        eligible["los"].notna()
+        & (eligible["los"] > 0)
+    ].copy()
+    
+    # Optional upper LOS restriction.
     if max_icu_los_days is not None:
         eligible = eligible[
-            eligible["los"].notna()
-            & (eligible["los"] > 0)
-            & (eligible["los"] <= max_icu_los_days)
+            eligible["los"] <= max_icu_los_days
         ].copy()
 
     eligible = eligible.sort_values(
@@ -479,11 +485,17 @@ def build_eicu_cohort(
     eligible["icu_los_days"] = eligible["unitdischargeoffset"] / 1440.0
 
     n_before_los = len(eligible)
+    
+    # A valid completed ICU stay must always have a finite positive LOS.
+    eligible = eligible[
+        eligible["icu_los_days"].notna()
+        & (eligible["icu_los_days"] > 0)
+    ].copy()
+    
+    # Optional upper LOS restriction.
     if max_icu_los_days is not None:
         eligible = eligible[
-            eligible["icu_los_days"].notna()
-            & (eligible["icu_los_days"] > 0)
-            & (eligible["icu_los_days"] <= max_icu_los_days)
+            eligible["icu_los_days"] <= max_icu_los_days
         ].copy()
 
     # eICU lacks a trustworthy absolute calendar date across separate encounters.
