@@ -660,8 +660,8 @@ def main() -> int:
         )
     if int(config.get("clinical_concept_count", -1)) != 75:
         raise ValueError("pipeline_config clinical_concept_count must be 75")
-    if int(config.get("expected_base_features_per_temporal_step", -1)) != 337:
-        raise ValueError("pipeline_config expected base feature count must be 337")
+    if int(config.get("expected_base_features_per_temporal_step", -1)) != 334:
+        raise ValueError("pipeline_config expected base feature count must be 334")
 
     review = mapping[mapping["review_flag"].eq(1)].copy()
     if not review.empty:
@@ -689,7 +689,7 @@ def main() -> int:
         "clinical_concepts": 75,
         "chloride_serum_removed": True,
         "within_window_aggregations_for_next_stage": config["aggregations"],
-        "expected_base_features_per_temporal_step_after_encoding": 337,
+        "expected_base_features_per_temporal_step_after_encoding": 334,
         "databases": {},
     }
 

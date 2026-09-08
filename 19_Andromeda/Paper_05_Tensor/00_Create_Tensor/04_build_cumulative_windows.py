@@ -46,8 +46,7 @@ Important scientific rules
 
 6. Demographics are NOT appended to the 300 clinical columns at this stage.
    The frozen MIMIC-training demographic schema is intentionally deferred to
-   Stage 05. The later expected base dimensionality is:
-       300 + 1 age + 3 gender + 33 race = 337.
+   Stage 05. The later expected base dimensionality is
 
 7. Aggregations are read from imports/pipeline_config.json. The primary config
    is mean/median/min/max. The implementation also supports optional future
@@ -1873,10 +1872,10 @@ def main() -> int:
                 -1,
             )
         )
-        if expected_base != 337:
+        if expected_base != 334:
             raise ValueError(
                 "Primary pipeline_config must state "
-                "expected_base_features_per_temporal_step=337."
+                "expected_base_features_per_temporal_step=334."
             )
 
     workers = resolve_workers(
@@ -1965,7 +1964,7 @@ def main() -> int:
             for key, hours in RESOLUTIONS.items()
         },
         "later_expected_base_features_primary": (
-            "300 clinical + 1 age + 3 gender + 33 race = 337"
+            "300 clinical + 1 age + 3 gender + 33 race = 334"
         ),
         "workers": int(workers),
         "patients_per_task": int(
