@@ -5,13 +5,16 @@
 
 Stage 03: deterministic cross-database event and demographic harmonization.
 
-Canonical root:
+Canonical project/data root:
+    /home/ddimopoulos/Paper_05_Tensor
+
+Canonical code/import directory:
     /home/ddimopoulos/Paper_05_Tensor/00_Create_Tensor
 
 Inputs:
     data/02_raw_events/{mimic,eicu}/*.parquet
-    imports/concept_schema_76.csv
-    imports/feature_mapping_76.csv
+    imports/concept_schema_75.csv
+    imports/feature_mapping_75.csv
     imports/pipeline_config.json
 
 Outputs:
@@ -28,7 +31,10 @@ Outputs:
 
 Scientific rules
 ----------------
-- 76 time-varying concepts: the erroneous/redundant "Chloride (serum)" is absent.
+- 75 time-varying concepts: the erroneous/redundant "Chloride (serum)" is absent.
+- Legacy ETOH is excluded from the primary harmonized feature set because the
+  MIMIC-IV source is binary-like whereas the eICU source is quantitative ethanol;
+  the two are not semantically/unit-wise equivalent cross-database predictors.
 - No temporal aggregation occurs here.
 - No imputation occurs here.
 - Missing values remain missing.
@@ -61,10 +67,10 @@ import numpy as np
 import pandas as pd
 
 
-PROJECT_ROOT_DEFAULT = Path("/home/ddimopoulos/Paper_05_Tensor/00_Create_Tensor")
+PROJECT_ROOT_DEFAULT = Path("/home/ddimopoulos/Paper_05_Tensor")
 RAW_DIR_DEFAULT = PROJECT_ROOT_DEFAULT / "data" / "02_raw_events"
 OUTPUT_DIR_DEFAULT = PROJECT_ROOT_DEFAULT / "data" / "03_harmonized"
-IMPORT_DIR_DEFAULT = PROJECT_ROOT_DEFAULT / "imports"
+IMPORT_DIR_DEFAULT = Path("/home/ddimopoulos/Paper_05_Tensor/00_Create_Tensor/imports")
 BATCH_ROWS_DEFAULT = 250_000
 
 RAW_SOURCES = {
@@ -248,8 +254,8 @@ def load_schema(path: Path) -> pd.DataFrame:
     missing = required - set(df.columns)
     if missing:
         raise ValueError(f"Schema missing columns: {sorted(missing)}")
-    if len(df) != 76:
-        raise ValueError(f"Expected exactly 76 concepts, found {len(df)}")
+    if len(df) != 75:
+        raise ValueError(f"Expected exactly 75 concepts, found {len(df)}")
     if df["canonical_concept"].duplicated().any():
         raise ValueError("Duplicate canonical concepts in schema")
     if "Chloride (serum)" in set(df["canonical_concept"]):
@@ -632,7 +638,7 @@ def main() -> int:
     import_dir = (
         args.import_dir.expanduser().resolve()
         if args.import_dir is not None
-        else project_root / "imports"
+        else IMPORT_DIR_DEFAULT.expanduser().resolve()
     )
 
     if args.batch_rows <= 0:
@@ -640,8 +646,8 @@ def main() -> int:
 
     logger = configure_logging(output_dir)
 
-    schema_path = import_dir / "concept_schema_76.csv"
-    mapping_path = import_dir / "feature_mapping_76.csv"
+    schema_path = import_dir / "concept_schema_75.csv"
+    mapping_path = import_dir / "feature_mapping_75.csv"
     config_path = import_dir / "pipeline_config.json"
 
     schema = load_schema(schema_path)
@@ -652,10 +658,10 @@ def main() -> int:
         raise ValueError(
             "Primary pipeline must currently use exactly mean/median/min/max."
         )
-    if int(config.get("clinical_concept_count", -1)) != 76:
-        raise ValueError("pipeline_config clinical_concept_count must be 76")
-    if int(config.get("expected_base_features_per_temporal_step", -1)) != 341:
-        raise ValueError("pipeline_config expected base feature count must be 341")
+    if int(config.get("clinical_concept_count", -1)) != 75:
+        raise ValueError("pipeline_config clinical_concept_count must be 75")
+    if int(config.get("expected_base_features_per_temporal_step", -1)) != 337:
+        raise ValueError("pipeline_config expected base feature count must be 337")
 
     review = mapping[mapping["review_flag"].eq(1)].copy()
     if not review.empty:
@@ -680,10 +686,10 @@ def main() -> int:
         "schema": str(schema_path),
         "mapping": str(mapping_path),
         "pipeline_config": str(config_path),
-        "clinical_concepts": 76,
+        "clinical_concepts": 75,
         "chloride_serum_removed": True,
         "within_window_aggregations_for_next_stage": config["aggregations"],
-        "expected_base_features_per_temporal_step_after_encoding": 341,
+        "expected_base_features_per_temporal_step_after_encoding": 337,
         "databases": {},
     }
 
@@ -790,7 +796,7 @@ def main() -> int:
         }
 
         logger.info(
-            "%s complete: patients=%d harmonized_events=%d concepts_with_events=%d/76",
+            "%s complete: patients=%d harmonized_events=%d concepts_with_events=%d/75",
             db,
             cohort_n,
             writer.rows,
