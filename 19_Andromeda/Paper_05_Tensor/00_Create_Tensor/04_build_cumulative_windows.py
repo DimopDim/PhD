@@ -10,9 +10,11 @@ Purpose
 Build cumulative clinical summaries from the Stage-03 harmonized event stream.
 
 For the primary pipeline:
-    concepts       = 76
+    concepts       = 75
+    (legacy ETOH excluded because its MIMIC-IV and eICU sources are not
+     semantically/unit-wise equivalent cross-database predictors)
     aggregations   = mean, median, min, max
-    clinical cols  = 76 * 4 = 304
+    clinical cols  = 75 * 4 = 300
 
 Native temporal resolutions:
     o1: 1 h -> endpoints 1, 2, ..., 48       (48 rows/patient)
@@ -42,10 +44,10 @@ Important scientific rules
 5. No imputation, scaling, one-hot encoding, splitting, or tensor upsampling
    is performed here.
 
-6. Demographics are NOT appended to the 304 clinical columns at this stage.
+6. Demographics are NOT appended to the 300 clinical columns at this stage.
    The frozen MIMIC-training demographic schema is intentionally deferred to
    Stage 05. The later expected base dimensionality is:
-       304 + 1 age + 3 gender + 33 race = 341.
+       300 + 1 age + 3 gender + 33 race = 337.
 
 7. Aggregations are read from imports/pipeline_config.json. The primary config
    is mean/median/min/max. The implementation also supports optional future
@@ -60,8 +62,8 @@ Inputs
     eicu/harmonized_events.parquet
     eicu/harmonized_demographics.parquet
 
-<project-root>/imports/
-    concept_schema_76.csv
+<code-root>/imports/
+    concept_schema_75.csv
     pipeline_config.json
 
 Outputs
@@ -122,12 +124,10 @@ import numpy as np
 import pandas as pd
 
 
-PROJECT_ROOT_DEFAULT = Path(
-    "/home/ddimopoulos/Paper_05_Tensor/00_Create_Tensor"
-)
+PROJECT_ROOT_DEFAULT = Path("/home/ddimopoulos/Paper_05_Tensor")
 INPUT_DIR_DEFAULT = PROJECT_ROOT_DEFAULT / "data" / "03_harmonized"
 OUTPUT_DIR_DEFAULT = PROJECT_ROOT_DEFAULT / "data" / "04_cumulative_windows"
-IMPORT_DIR_DEFAULT = PROJECT_ROOT_DEFAULT / "imports"
+IMPORT_DIR_DEFAULT = Path("/home/ddimopoulos/Paper_05_Tensor/00_Create_Tensor/imports")
 
 WORKERS_DEFAULT = 10
 PATIENTS_PER_TASK_DEFAULT = 64
@@ -243,9 +243,9 @@ def load_schema(path: Path) -> pd.DataFrame:
         kind="stable",
     ).reset_index(drop=True)
 
-    if len(df) != 76:
+    if len(df) != 75:
         raise ValueError(
-            f"Primary schema requires exactly 76 concepts; found {len(df)}."
+            f"Primary schema requires exactly 75 concepts; found {len(df)}."
         )
 
     if df["canonical_concept"].duplicated().any():
@@ -259,7 +259,7 @@ def load_schema(path: Path) -> pd.DataFrame:
 
     if "Chloride (serum)" in set(df["canonical_concept"]):
         raise ValueError(
-            "'Chloride (serum)' must not appear in the locked 76-concept schema."
+            "'Chloride (serum)' must not appear in the locked 75-concept schema."
         )
 
     return df
@@ -285,9 +285,9 @@ def load_config(path: Path) -> dict:
     if len(set(aggregations)) != len(aggregations):
         raise ValueError("Duplicate aggregation names in pipeline config.")
 
-    if int(config.get("clinical_concept_count", -1)) != 76:
+    if int(config.get("clinical_concept_count", -1)) != 75:
         raise ValueError(
-            "pipeline_config clinical_concept_count must be 76."
+            "pipeline_config clinical_concept_count must be 75."
         )
 
     primary = ["mean", "median", "min", "max"]
@@ -499,8 +499,8 @@ def prepare_database_arrays(
             "post-discharge NaN windows."
         )
 
-    if (demo["icu_los_days"] < 0).any():
-        raise ValueError("Negative ICU LOS detected.")
+    if (demo["icu_los_days"] <= 0).any():
+        raise ValueError("Non-positive ICU LOS detected.")
 
     # Stable order for deterministic output.
     demo = demo.sort_values(
@@ -1745,7 +1745,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--import-dir",
         type=Path,
         default=None,
-        help="Default: <project-root>/imports",
+        help="Default: /home/ddimopoulos/Paper_05_Tensor/00_Create_Tensor/imports",
     )
     parser.add_argument(
         "--database",
@@ -1816,14 +1816,14 @@ def main() -> int:
     import_dir = (
         args.import_dir.expanduser().resolve()
         if args.import_dir is not None
-        else project_root / "imports"
+        else IMPORT_DIR_DEFAULT.expanduser().resolve()
     )
 
     logger = configure_logging(output_dir)
 
     schema_path = (
         import_dir
-        / "concept_schema_76.csv"
+        / "concept_schema_75.csv"
     )
     config_path = (
         import_dir
@@ -1861,9 +1861,9 @@ def main() -> int:
         "min",
         "max",
     ]:
-        if expected_clinical != 304:
+        if expected_clinical != 300:
             raise ValueError(
-                f"Locked primary configuration must produce 304 "
+                f"Locked primary configuration must produce 300 "
                 f"clinical descriptors, found {expected_clinical}."
             )
 
@@ -1873,10 +1873,10 @@ def main() -> int:
                 -1,
             )
         )
-        if expected_base != 341:
+        if expected_base != 337:
             raise ValueError(
                 "Primary pipeline_config must state "
-                "expected_base_features_per_temporal_step=341."
+                "expected_base_features_per_temporal_step=337."
             )
 
     workers = resolve_workers(
@@ -1965,7 +1965,7 @@ def main() -> int:
             for key, hours in RESOLUTIONS.items()
         },
         "later_expected_base_features_primary": (
-            "304 clinical + 1 age + 3 gender + 33 race = 341"
+            "300 clinical + 1 age + 3 gender + 33 race = 337"
         ),
         "workers": int(workers),
         "patients_per_task": int(
