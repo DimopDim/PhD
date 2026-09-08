@@ -19,9 +19,11 @@ For each landmark t:
     LOS target: remaining ICU LOS = total ICU LOS - t
     mortality target: subsequent in-hospital mortality
 
-The MIMIC patient-level 80/20 development/test split is created ONCE on the full selected cohort.
-The same patient assignment is then reused at every landmark. The eICU cohort
-is never used for split creation or demographic-schema fitting.
+The original MIMIC patient-level development/test assignment is preserved for
+all legacy patients. Only newly included MIMIC patients are assigned, once,
+using a deterministic mortality-stratified 80/20 split. The resulting frozen
+assignment is then reused at every landmark. The eICU cohort is never used for
+split creation or demographic-schema fitting.
 
 Leakage barriers
 ----------------
@@ -37,11 +39,11 @@ Leakage barriers
 
 Feature dimensionality
 ----------------------
-    304 Stage-04 clinical descriptors
+    300 Stage-04 clinical descriptors
     + 1 age
     + 3 gender columns
     + R race columns observed in MIMIC training
-    = 304 + 1 + 3 + R predictors per native temporal endpoint
+    = 300 + 1 + 3 + R predictors per native temporal endpoint
 
 Temporal-grid note
 ------------------
@@ -105,12 +107,14 @@ python 05_create_splits_and_encode.py \
     --landmarks 1,4,8,12,16,20,24,36,48 \
     --seed 42 \
     --train-fraction 0.80 \
-    --test-fraction 0.20
+    --test-fraction 0.20 \
+    --legacy-split-file /home/ddimopoulos/Paper_05_Tensor/data/revision_audit/full_cohort_split_assignments_original.csv
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
 import math
@@ -123,9 +127,7 @@ import numpy as np
 import pandas as pd
 
 
-PROJECT_ROOT_DEFAULT = Path(
-    "/home/ddimopoulos/Paper_05_Tensor/00_Create_Tensor"
-)
+PROJECT_ROOT_DEFAULT = Path("/home/ddimopoulos/Paper_05_Tensor")
 HARMONIZED_DIR_DEFAULT = (
     PROJECT_ROOT_DEFAULT / "data" / "03_harmonized"
 )
@@ -142,7 +144,12 @@ SEED_DEFAULT = 42
 TRAIN_FRACTION_DEFAULT = 0.80
 TEST_FRACTION_DEFAULT = 0.20
 
-EXPECTED_CLINICAL_COLUMNS = 304
+LEGACY_SPLIT_FILE_DEFAULT = (
+    PROJECT_ROOT_DEFAULT / "data" / "revision_audit"
+    / "full_cohort_split_assignments_original.csv"
+)
+
+EXPECTED_CLINICAL_COLUMNS = 300
 EXPECTED_GENDER_COLUMNS = 3
 
 EXPECTED_GENDER_CATEGORIES = ["F", "M", "UNKNOWN"]
@@ -431,9 +438,9 @@ def load_demographics(
             f"{database}: {n} patients have missing ICU LOS."
         )
 
-    if (out["icu_los_days"] < 0).any():
+    if (out["icu_los_days"] <= 0).any():
         raise ValueError(
-            f"{database}: negative ICU LOS detected."
+            f"{database}: non-positive ICU LOS detected."
         )
 
     # Mortality completeness is outcome-specific.
@@ -488,23 +495,84 @@ def load_demographics(
     ).reset_index(drop=True)
 
 
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def load_legacy_split(path: Path) -> pd.DataFrame:
+    """
+    Load the immutable original MIMIC patient-level train/test assignment.
+
+    Matching is intentionally by patient_id only. stay_id is not used because
+    removing the former <=10-day LOS restriction can change the selected index
+    stay for a legacy patient while the patient-level split must remain frozen.
+    """
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"Legacy split file not found: {path}"
+        )
+
+    legacy = pd.read_csv(path)
+
+    required = {"patient_id", "split"}
+    missing = sorted(required - set(legacy.columns))
+    if missing:
+        raise ValueError(
+            f"{path}: missing required columns {missing}"
+        )
+
+    legacy = legacy.copy()
+    legacy["patient_id"] = (
+        legacy["patient_id"].astype(str).str.strip()
+    )
+    legacy["split"] = (
+        legacy["split"].astype(str).str.strip().str.lower()
+    )
+
+    if legacy["patient_id"].eq("").any():
+        raise ValueError("Legacy split contains empty patient_id values.")
+
+    if legacy["patient_id"].duplicated().any():
+        dup = legacy.loc[
+            legacy["patient_id"].duplicated(keep=False),
+            "patient_id",
+        ].head(10).tolist()
+        raise ValueError(
+            f"Legacy split contains duplicate patient_id values. Examples: {dup}"
+        )
+
+    invalid = sorted(set(legacy["split"]) - {"train", "test"})
+    if invalid:
+        raise ValueError(
+            f"Legacy split contains invalid split labels: {invalid}"
+        )
+
+    return legacy[["patient_id", "split"]].sort_values(
+        "patient_id", kind="stable"
+    ).reset_index(drop=True)
+
+
 def create_full_mimic_split(
     demo: pd.DataFrame,
     *,
+    legacy_split: pd.DataFrame,
     train_fraction: float,
     test_fraction: float,
     seed: int,
-) -> pd.DataFrame:
+) -> Tuple[pd.DataFrame, dict]:
     """
-    Create one patient-level development/test split on the full MIMIC cohort.
+    Preserve the original patient-level MIMIC split and assign only new patients.
 
-    Default:
-        80% development/training
-        20% internal test
+    Legacy patients keep their historical train/test assignment exactly.
+    Newly included patients are assigned once using mortality-stratified
+    train/test splitting with the requested fractions and random seed.
 
-    Five-fold cross-validation is performed later inside the development set.
-    Stratification is by in-hospital mortality only. LOS is not used to assign
-    patients to train/test.
+    LOS, stay duration, and landmark membership are never used for assignment.
     """
     from sklearn.model_selection import train_test_split
 
@@ -513,28 +581,67 @@ def create_full_mimic_split(
             "MIMIC split cannot be stratified with missing mortality labels."
         )
 
-    ids = demo["patient_id"].to_numpy()
-    y = (
-        demo["hospital_expire_flag"]
-        .astype("int8")
-        .to_numpy(dtype=int)
-    )
+    current_ids = set(demo["patient_id"].astype(str))
+    legacy_ids = set(legacy_split["patient_id"].astype(str))
 
-    train_ids, test_ids = train_test_split(
-        ids,
-        test_size=test_fraction,
-        random_state=seed,
-        shuffle=True,
-        stratify=y,
-    )
+    missing_legacy = sorted(legacy_ids - current_ids)
+    if missing_legacy:
+        raise RuntimeError(
+            "One or more legacy MIMIC patients are absent from the revised "
+            f"cohort ({len(missing_legacy)} missing). First examples: "
+            f"{missing_legacy[:10]}"
+        )
 
-    split_map: Dict[str, str] = {}
-    split_map.update({str(pid): "train" for pid in train_ids})
-    split_map.update({str(pid): "test" for pid in test_ids})
+    new_ids = sorted(current_ids - legacy_ids)
+
+    split_map: Dict[str, str] = dict(
+        zip(
+            legacy_split["patient_id"].astype(str),
+            legacy_split["split"].astype(str),
+        )
+    )
+    origin_map: Dict[str, str] = {
+        str(pid): "legacy_frozen" for pid in legacy_ids
+    }
+
+    if new_ids:
+        new_demo = demo[
+            demo["patient_id"].astype(str).isin(new_ids)
+        ].copy()
+
+        y_new = (
+            new_demo["hospital_expire_flag"]
+            .astype("int8")
+            .to_numpy(dtype=int)
+        )
+        ids_new = new_demo["patient_id"].astype(str).to_numpy()
+
+        class_counts = pd.Series(y_new).value_counts()
+        if len(class_counts) < 2 or int(class_counts.min()) < 2:
+            raise RuntimeError(
+                "Newly included MIMIC patients do not support a safe "
+                "mortality-stratified train/test split. "
+                f"Class counts: {class_counts.to_dict()}"
+            )
+
+        new_train_ids, new_test_ids = train_test_split(
+            ids_new,
+            test_size=test_fraction,
+            random_state=seed,
+            shuffle=True,
+            stratify=y_new,
+        )
+
+        for pid in new_train_ids:
+            split_map[str(pid)] = "train"
+            origin_map[str(pid)] = "new_stratified"
+        for pid in new_test_ids:
+            split_map[str(pid)] = "test"
+            origin_map[str(pid)] = "new_stratified"
 
     if len(split_map) != len(demo):
         raise AssertionError(
-            "Every MIMIC patient must receive exactly one split."
+            "Every revised MIMIC patient must receive exactly one split."
         )
 
     out = demo[
@@ -547,17 +654,64 @@ def create_full_mimic_split(
         ]
     ].copy()
 
-    out["split"] = out["patient_id"].map(split_map)
+    out["split"] = out["patient_id"].astype(str).map(split_map)
+    out["split_origin"] = out["patient_id"].astype(str).map(origin_map)
 
-    if out["split"].isna().any():
-        raise AssertionError(
-            "Missing MIMIC split assignment."
+    if out["split"].isna().any() or out["split_origin"].isna().any():
+        raise AssertionError("Missing MIMIC split assignment or origin.")
+
+    # Fail closed: every legacy patient must retain the exact historical split.
+    legacy_check = out[
+        out["patient_id"].astype(str).isin(legacy_ids)
+    ][["patient_id", "split"]].copy()
+    legacy_check["patient_id"] = legacy_check["patient_id"].astype(str)
+
+    expected = legacy_split.rename(
+        columns={"split": "legacy_split"}
+    )
+    check = legacy_check.merge(
+        expected,
+        on="patient_id",
+        how="inner",
+        validate="one_to_one",
+    )
+
+    if len(check) != len(legacy_split):
+        raise RuntimeError(
+            "Legacy split preservation audit did not align all patients."
         )
 
-    return out.sort_values(
-        ["split", "patient_id"],
-        kind="stable",
-    ).reset_index(drop=True)
+    mismatched = check["split"].ne(check["legacy_split"])
+    if mismatched.any():
+        bad = check.loc[
+            mismatched, ["patient_id", "legacy_split", "split"]
+        ].head(10)
+        raise RuntimeError(
+            "Legacy split assignment changed unexpectedly. Examples: "
+            f"{bad.to_dict(orient='records')}"
+        )
+
+    audit = {
+        "legacy_patients": int(len(legacy_ids)),
+        "legacy_preserved_exactly": True,
+        "new_patients": int(len(new_ids)),
+        "new_train": int(
+            sum(split_map[pid] == "train" for pid in new_ids)
+        ),
+        "new_test": int(
+            sum(split_map[pid] == "test" for pid in new_ids)
+        ),
+        "revised_train": int((out["split"] == "train").sum()),
+        "revised_test": int((out["split"] == "test").sum()),
+    }
+
+    return (
+        out.sort_values(
+            ["split", "patient_id"],
+            kind="stable",
+        ).reset_index(drop=True),
+        audit,
+    )
 
 
 def freeze_demographic_schema(
@@ -852,7 +1006,7 @@ def build_feature_order(
 
     if len(set(features)) != len(features):
         raise ValueError(
-            "Duplicate feature names in 341-column schema."
+            "Duplicate feature names in the frozen predictor schema."
         )
 
     rows = []
@@ -1607,7 +1761,7 @@ def nested_risk_set_audit(
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description=(
-            "Create one MIMIC 80/20 development/test split and leakage-safe "
+            "Preserve the original MIMIC split, assign only new patients, and create leakage-safe "
             "dynamic landmark risk sets. Five-fold CV is performed later "
             "within the development set."
         )
@@ -1656,6 +1810,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--test-fraction",
         type=float,
         default=TEST_FRACTION_DEFAULT,
+    )
+    p.add_argument(
+        "--legacy-split-file",
+        type=Path,
+        default=LEGACY_SPLIT_FILE_DEFAULT,
+        help=(
+            "Immutable original MIMIC patient-level train/test assignment. "
+            "Legacy patients keep this assignment exactly; only newly "
+            "included patients are stratified."
+        ),
     )
 
     return p
@@ -1706,6 +1870,11 @@ def main() -> int:
         / "data"
         / "05_splits"
     )
+    legacy_split_file = (
+        args.legacy_split_file
+        .expanduser()
+        .resolve()
+    )
 
     logger = configure_logging(
         output_dir
@@ -1726,6 +1895,10 @@ def main() -> int:
     logger.info(
         "Output directory: %s",
         output_dir,
+    )
+    logger.info(
+        "Legacy frozen split: %s",
+        legacy_split_file,
     )
     logger.info(
         "Dynamic landmarks: %s",
@@ -1800,15 +1973,33 @@ def main() -> int:
     )
 
     # --------------------------------------------------------------
-    # One frozen MIMIC patient split.
+    # Frozen legacy MIMIC split + deterministic assignment of new patients.
     # --------------------------------------------------------------
-    full_assignment = (
+    legacy_split = load_legacy_split(
+        legacy_split_file
+    )
+    legacy_split_sha256 = sha256_file(
+        legacy_split_file
+    )
+
+    full_assignment, split_preservation_audit = (
         create_full_mimic_split(
             mimic_demo,
+            legacy_split=legacy_split,
             train_fraction=args.train_fraction,
             test_fraction=args.test_fraction,
             seed=args.seed,
         )
+    )
+
+    logger.info(
+        "Legacy split preservation | legacy=%d preserved=%s | "
+        "new=%d (train=%d test=%d)",
+        split_preservation_audit["legacy_patients"],
+        split_preservation_audit["legacy_preserved_exactly"],
+        split_preservation_audit["new_patients"],
+        split_preservation_audit["new_train"],
+        split_preservation_audit["new_test"],
     )
 
     reports_dir = (
@@ -1823,6 +2014,14 @@ def main() -> int:
     full_assignment.to_csv(
         reports_dir
         / "full_cohort_split_assignments.csv",
+        index=False,
+    )
+
+    pd.DataFrame(
+        [split_preservation_audit]
+    ).to_csv(
+        reports_dir
+        / "legacy_split_preservation_audit.csv",
         index=False,
     )
 
@@ -1899,7 +2098,7 @@ def main() -> int:
     ).write_text(
         json.dumps(
             {
-                "clinical_feature_count": 304,
+                "clinical_feature_count": int(len(clinical_columns)),
                 "demographic_feature_count": int(
                     demographic_schema["demographic_feature_count"]
                 ),
@@ -2551,11 +2750,15 @@ def main() -> int:
         "mortality_target": (
             "in-hospital mortality among patients still in ICU at t"
         ),
-        "split_created_once_on_full_mimic_cohort": True,
+        "split_created_once_on_full_mimic_cohort": False,
         "split_strategy": (
-            "patient-level 80/20 development/test split, stratified only "
-            "on in-hospital mortality"
+            "original patient-level MIMIC train/test assignment preserved "
+            "exactly for all legacy patients; only newly included patients "
+            "assigned once using mortality-stratified train/test splitting"
         ),
+        "legacy_split_file": str(legacy_split_file),
+        "legacy_split_sha256": legacy_split_sha256,
+        "legacy_split_preservation_audit": split_preservation_audit,
         "internal_validation_strategy": (
             "five-fold cross-validation within the MIMIC development set"
         ),
@@ -2581,7 +2784,7 @@ def main() -> int:
             "mortality remain eligible for LOS; mortality modeling/evaluation "
             "uses only mortality_known==True."
         ),
-        "clinical_feature_count": 304,
+        "clinical_feature_count": int(len(clinical_columns)),
         "demographic_feature_count": int(
             demographic_schema["demographic_feature_count"]
         ),
@@ -2604,6 +2807,10 @@ def main() -> int:
             "full_cohort_split_assignments": str(
                 reports_dir
                 / "full_cohort_split_assignments.csv"
+            ),
+            "legacy_split_preservation_audit": str(
+                reports_dir
+                / "legacy_split_preservation_audit.csv"
             ),
             "demographic_category_counts": str(
                 reports_dir
