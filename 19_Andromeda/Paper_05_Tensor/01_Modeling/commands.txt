@@ -1,0 +1,147 @@
+source ~/venvs/andromeda/bin/activate
+
+cd /home/ddimopoulos/Paper_05_Tensor/01_Modeling
+
+
+
+=======================================================
+01_prepare_model_matrices.py
+=======================================================
+
+cd /home/ddimopoulos/Paper_05_Tensor/01_Modeling
+
+python 01_prepare_model_matrices.py --overwrite
+
+
+=======================================================
+02_optuna_tune_xgboost
+=======================================================
+
+cd /home/ddimopoulos/Paper_05_Tensor/01_Modeling
+
+python 02_optuna_tune_xgboost.py
+
+
+=======================================================
+03_train_xgboost.py
+=======================================================
+
+cd /home/ddimopoulos/Paper_05_Tensor/01_Modeling
+
+python 03_train_xgboost.py \
+  --workers 8 \
+  --xgb-threads 8
+  
+
+=======================================================
+04_collect_metrics.py
+=======================================================  
+cd /home/ddimopoulos/Paper_05_Tensor/01_Modeling
+
+python 04_collect_metrics.py
+
+
+=======================================================
+05_plot_results.py
+=======================================================  
+cd /home/ddimopoulos/Paper_05_Tensor/01_Modeling
+
+python 05_plot_results.py
+
+
+
+=======================================================
+06_shap_concepts.py
+=======================================================  
+cd /home/ddimopoulos/Paper_05_Tensor/01_Modeling
+
+
+python 06_shap_concepts.py \
+  --landmarks 24 \
+  --variants full \
+  --outcomes los,mortality \
+  --cohorts mimic_test,eicu_external \
+  --max-rows 2000 \
+  --top-n 20
+
+
+=======================================================
+07_bootstrap_landmark_analysis.py
+=======================================================  
+cd /home/ddimopoulos/Paper_05_Tensor/01_Modeling
+
+python 07_bootstrap_landmark_analysis.py \
+  --bootstrap 2000 \
+  --ci 95 \
+  --seed 42 \
+  --workers 8 \
+  --mortality-probability calibrated \
+  --reference-variant full \
+  --common-risk-blocks "4,8,12,16,20,24;24,36,48" \
+  --common-risk-variant full \
+  --common-risk-pairs all
+
+
+
+
+python 07_bootstrap_landmark_analysis.py \
+  --bootstrap 2000 \
+  --ci 95 \
+  --seed 42 \
+  --workers 8 \
+  --mortality-probability calibrated \
+  --common-risk-blocks "4,8,12,16,20,24;24,36,48" \
+  --common-risk-variant static \
+  --common-risk-pairs all \
+  --skip-individual-ci \
+  --skip-representation-comparisons \
+  --output-dir bootstrap_results/commonrisk_static
+
+
+
+
+
+=======================================================
+08_make_supplementary_performance_figures.py
+=======================================================  
+
+cd /home/ddimopoulos/Paper_05_Tensor/01_Modeling
+
+python 08_make_supplementary_performance_figures.py
+
+
+
+=======================================================
+09_make_common_riskset_figure.py
+=======================================================  
+
+cd /home/ddimopoulos/Paper_05_Tensor/01_Modeling
+
+python 09_make_common_riskset_figure.py
+
+
+
+
+
+
+=======================================================
+10_run_baseline_models.py
+=======================================================  
+
+cd /home/ddimopoulos/Paper_05_Tensor/01_Modeling
+
+python 10_run_baseline_models.py
+
+
+
+=======================================================
+11_bootstrap_baseline_comparisons.py 
+=======================================================  
+
+cd /home/ddimopoulos/Paper_05_Tensor/01_Modeling
+
+python 11_bootstrap_baseline_comparisons.py \
+  --bootstrap 2000 \
+  --ci 95 \
+  --seed 42 \
+  --workers 8

@@ -3,37 +3,55 @@
 """
 modeling_common.py
 
-Shared utilities for the multi-landmark XGBoost pipeline.
+Shared utilities for the multi-landmark XGBoost modeling pipeline.
 
-Design fixed upstream
----------------------
-- Stage 06 tensors: (N, t, 337, 4)
-- 304 clinical predictors + 33 demographics
-- channels o1/o2/o3/o4 = 1h/2h/3h/4h
-- primary LOS target: remaining ICU LOS after landmark
-- mortality: in-hospital mortality; unknown external labels retained as NaN
-- MIMIC development/test split fixed upstream
-- no external data used for fitting/model selection/calibration/thresholding
+Upstream contract
+-----------------
+Stage 06 supplies one causally aligned tensor per cohort/split/landmark:
+
+    X.shape = (N, T, F, 4)
+
+where:
+- N is the number of patients in the landmark risk set;
+- T is the landmark hour on the common hourly axis;
+- F is the frozen Stage-05 base-feature width;
+- the four channels are o1/o2/o3/o4 = 1 h/2 h/3 h/4 h;
+- clinical and demographic widths are read from Stage-06 metadata rather than
+  hard-coded in this module.
+
+The revised pipeline is therefore schema-driven. For the current experiment,
+Stage 06 reports 300 clinical and 34 demographic predictors (F=334), but these
+numbers are treated as run metadata rather than implementation constants.
+
+Targets and evaluation roles
+----------------------------
+- primary LOS target: remaining ICU LOS after the landmark;
+- mortality: subsequent in-hospital mortality;
+- unknown external mortality labels remain NaN and are tracked by
+  ``mortality_known``;
+- the MIMIC development/test assignment is fixed upstream;
+- eICU is external only and must not be used for fitting, model selection,
+  calibration, or threshold selection.
 
 Model representations
 ---------------------
+Let C be the number of clinical predictors, D the number of demographic
+predictors, and K=6 the number of trajectory descriptors.
+
 full:
-    six trajectory descriptors for each of the 304 clinical features in all
-    four channels, plus the 33 demographics once:
-        304 * 6 * 4 + 33 = 7329
+    C * K * 4 + D predictors
 
 o1/o2/o3/o4:
-    six descriptors for one channel + demographics once:
-        304 * 6 + 33 = 1857
+    C * K + D predictors
 
 static:
-    final o1 landmark summary, including demographics once:
-        304 + 33 = 337
+    C + D predictors from the final o1 cumulative landmark summary
 
 Trajectory descriptors:
-    last, mean, std, min, max, slope
+    last, mean, population standard deviation, minimum, maximum, OLS slope
 
-No imputation or scaling is performed. XGBoost handles missing values natively.
+No clinical imputation or scaling is performed. Missing predictor values are
+passed to XGBoost unchanged.
 """
 
 from __future__ import annotations
@@ -275,6 +293,223 @@ def tensor_paths(
     )
 
 
+def expected_model_feature_count(
+    clinical_count: int,
+    demographic_count: int,
+    variant: str,
+) -> int:
+    """Return the schema-derived expected model-matrix width."""
+    if clinical_count < 0 or demographic_count < 0:
+        raise ValueError(
+            "Feature counts must be non-negative: "
+            f"clinical={clinical_count}, demographic={demographic_count}"
+        )
+
+    if variant == "static":
+        return clinical_count + demographic_count
+    if variant == "full":
+        return (
+            clinical_count
+            * len(TRAJECTORY_DESCRIPTORS)
+            * len(CHANNEL_ORDER)
+            + demographic_count
+        )
+    if variant in CHANNEL_TO_INDEX:
+        return (
+            clinical_count
+            * len(TRAJECTORY_DESCRIPTORS)
+            + demographic_count
+        )
+    raise ValueError(f"Unknown variant {variant!r}")
+
+
+def expected_model_feature_counts(
+    clinical_count: int,
+    demographic_count: int,
+) -> Dict[str, int]:
+    """Return expected widths for every supported representation."""
+    return {
+        variant: expected_model_feature_count(
+            clinical_count,
+            demographic_count,
+            variant,
+        )
+        for variant in VALID_VARIANTS
+    }
+
+
+def validate_tensor_contract(
+    *,
+    X: np.ndarray,
+    landmark: int,
+    feature_names: Sequence[str],
+    clinical_count: int,
+    demographic_count: int,
+    patient_id: np.ndarray,
+    stay_id: np.ndarray,
+    y_los_remaining_days: np.ndarray,
+    y_los_total_days: np.ndarray,
+    y_mortality: np.ndarray,
+    mortality_known: np.ndarray,
+    time_hours: np.ndarray,
+    channel_available: np.ndarray,
+    source_endpoint_hour: np.ndarray,
+    source_label: str,
+) -> None:
+    """Fail closed when a Stage-06 tensor violates the modeling contract."""
+    n = len(patient_id)
+    feature_count = len(feature_names)
+
+    if clinical_count <= 0:
+        raise ValueError(
+            f"{source_label}: clinical_feature_count must be positive; "
+            f"observed {clinical_count}."
+        )
+    if demographic_count <= 0:
+        raise ValueError(
+            f"{source_label}: demographic_feature_count must be positive; "
+            f"observed {demographic_count}."
+        )
+    if clinical_count + demographic_count != feature_count:
+        raise ValueError(
+            f"{source_label}: feature-count mismatch: "
+            f"clinical={clinical_count} + demographic={demographic_count} "
+            f"!= feature_names={feature_count}."
+        )
+    if len(set(map(str, feature_names))) != feature_count:
+        raise ValueError(
+            f"{source_label}: duplicate Stage-06 feature names detected."
+        )
+
+    expected_shape = (
+        n,
+        int(landmark),
+        feature_count,
+        len(CHANNEL_ORDER),
+    )
+    if X.shape != expected_shape:
+        raise ValueError(
+            f"{source_label}: tensor shape {X.shape}, "
+            f"expected {expected_shape}."
+        )
+
+    one_dimensional = {
+        "stay_id": stay_id,
+        "y_los_remaining_days": y_los_remaining_days,
+        "y_los_total_days": y_los_total_days,
+        "y_mortality": y_mortality,
+        "mortality_known": mortality_known,
+    }
+    for name, values in one_dimensional.items():
+        if np.asarray(values).shape != (n,):
+            raise ValueError(
+                f"{source_label}: {name} shape "
+                f"{np.asarray(values).shape}, expected {(n,)}."
+            )
+
+    if np.asarray(time_hours).shape != (int(landmark),):
+        raise ValueError(
+            f"{source_label}: time_hours shape "
+            f"{np.asarray(time_hours).shape}, "
+            f"expected {(int(landmark),)}."
+        )
+
+    expected_time = np.arange(
+        1,
+        int(landmark) + 1,
+        dtype=np.float64,
+    )
+    if not np.allclose(
+        np.asarray(time_hours, dtype=np.float64),
+        expected_time,
+        rtol=0.0,
+        atol=1e-12,
+    ):
+        raise ValueError(
+            f"{source_label}: time_hours is not the expected hourly "
+            f"1..{landmark} axis."
+        )
+
+    if np.asarray(channel_available).shape != (len(CHANNEL_ORDER),):
+        raise ValueError(
+            f"{source_label}: channel_available shape "
+            f"{np.asarray(channel_available).shape}, "
+            f"expected {(len(CHANNEL_ORDER),)}."
+        )
+
+    if np.asarray(source_endpoint_hour).shape != (
+        int(landmark),
+        len(CHANNEL_ORDER),
+    ):
+        raise ValueError(
+            f"{source_label}: source_endpoint_hour shape "
+            f"{np.asarray(source_endpoint_hour).shape}, expected "
+            f"{(int(landmark), len(CHANNEL_ORDER))}."
+        )
+
+    source_endpoint_hour = np.asarray(
+        source_endpoint_hour,
+        dtype=np.int64,
+    )
+    if (source_endpoint_hour < 0).any():
+        raise ValueError(
+            f"{source_label}: negative source endpoint detected."
+        )
+    if (source_endpoint_hour > int(landmark)).any():
+        raise ValueError(
+            f"{source_label}: source endpoint beyond landmark detected."
+        )
+
+    aligned_hours = np.arange(
+        1,
+        int(landmark) + 1,
+        dtype=np.int64,
+    )[:, None]
+    if (source_endpoint_hour > aligned_hours).any():
+        raise ValueError(
+            f"{source_label}: future endpoint copied backward "
+            "into the aligned tensor."
+        )
+
+    if not np.isfinite(y_los_remaining_days).all():
+        raise ValueError(
+            f"{source_label}: remaining-LOS target contains non-finite values."
+        )
+    if (np.asarray(y_los_remaining_days) <= 0).any():
+        raise ValueError(
+            f"{source_label}: remaining-LOS target must be strictly positive."
+        )
+    if not np.isfinite(y_los_total_days).all():
+        raise ValueError(
+            f"{source_label}: total-LOS target contains non-finite values."
+        )
+
+    mortality_known_arr = np.asarray(mortality_known, dtype=bool)
+    mortality_arr = np.asarray(y_mortality, dtype=np.float64)
+    if np.isnan(mortality_arr[mortality_known_arr]).any():
+        raise ValueError(
+            f"{source_label}: mortality_known=True with NaN mortality target."
+        )
+    known_values = mortality_arr[mortality_known_arr]
+    if known_values.size and not np.isin(
+        known_values,
+        [0.0, 1.0],
+    ).all():
+        raise ValueError(
+            f"{source_label}: known mortality targets must be binary 0/1."
+        )
+    if np.isfinite(mortality_arr[~mortality_known_arr]).any():
+        raise ValueError(
+            f"{source_label}: mortality_known=False must correspond to NaN "
+            "mortality target."
+        )
+
+    assert_unique_patient_rows(
+        patient_id,
+        label=source_label,
+    )
+
+
 def load_tensor(
     tensor_root: Path,
     landmark: int,
@@ -343,26 +578,23 @@ def load_tensor(
         meta["demographic_feature_count"]
     )
 
-    expected_shape = (
-        len(patient_id),
-        int(landmark),
-        len(feature_names),
-        4,
+    validate_tensor_contract(
+        X=X,
+        landmark=landmark,
+        feature_names=feature_names,
+        clinical_count=clinical_count,
+        demographic_count=demographic_count,
+        patient_id=patient_id,
+        stay_id=stay_id,
+        y_los_remaining_days=y_los_remaining_days,
+        y_los_total_days=y_los_total_days,
+        y_mortality=y_mortality,
+        mortality_known=mortality_known,
+        time_hours=time_hours,
+        channel_available=channel_available,
+        source_endpoint_hour=source_endpoint_hour,
+        source_label=str(npz_path),
     )
-    if X.shape != expected_shape:
-        raise ValueError(
-            f"{npz_path}: tensor shape {X.shape}, "
-            f"expected {expected_shape}."
-        )
-
-    if (
-        clinical_count
-        + demographic_count
-        != len(feature_names)
-    ):
-        raise ValueError(
-            f"{metadata_path}: feature counts inconsistent."
-        )
 
     return TensorData(
         X=X,
@@ -716,9 +948,20 @@ def build_model_matrix(
             )
         )
 
-    if X.shape[1] != len(
-        feature_names
-    ):
+    expected_width = expected_model_feature_count(
+        tensor.clinical_count,
+        tensor.demographic_count,
+        variant,
+    )
+    if X.shape[1] != expected_width:
+        raise AssertionError(
+            f"Schema-derived width mismatch for variant={variant}: "
+            f"X has {X.shape[1]} columns, expected {expected_width} "
+            f"from clinical={tensor.clinical_count}, "
+            f"demographic={tensor.demographic_count}."
+        )
+
+    if X.shape[1] != len(feature_names):
         raise AssertionError(
             f"Feature-name width mismatch: X={X.shape}, "
             f"names={len(feature_names)}"
@@ -781,9 +1024,7 @@ def save_model_matrix(
         json.dumps(
             {
                 "feature_names": matrix.feature_names,
-                "feature_count": len(
-                    matrix.feature_names
-                ),
+                "feature_count": len(matrix.feature_names),
             },
             indent=2,
         ),
@@ -827,11 +1068,19 @@ def load_model_matrix(
         str(x)
         for x in meta["feature_names"]
     ]
-    if X.shape[1] != len(
-        feature_names
-    ):
+    declared_feature_count = int(
+        meta.get("feature_count", len(feature_names))
+    )
+    if declared_feature_count != len(feature_names):
         raise ValueError(
-            f"{matrix_path}: feature width mismatch."
+            f"{feature_path}: declared feature_count="
+            f"{declared_feature_count} but feature_names contains "
+            f"{len(feature_names)} entries."
+        )
+    if X.shape[1] != len(feature_names):
+        raise ValueError(
+            f"{matrix_path}: feature width mismatch: "
+            f"X={X.shape[1]}, names={len(feature_names)}."
         )
 
     assert_no_identifier_predictors(
