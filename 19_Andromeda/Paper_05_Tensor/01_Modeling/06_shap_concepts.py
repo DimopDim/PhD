@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-05_shap_concepts.py
+06_shap_concepts.py
 
 Fold-ensemble concept-level SHAP for XGBoost.
 
@@ -10,11 +10,11 @@ Key properties
 - For MIMIC test/eICU external, SHAP is averaged across the five fold models.
 - SHAP is computed on the model's raw margin, preserving additivity before the
   mortality sigmoid/Platt calibration.
-- Signed SHAP values are summed across:
-    * resolution channels
-    * within-window aggregation variants (mean/median/min/max)
-    * temporal trajectory descriptors (last/mean/std/min/max/slope)
-  to obtain one value per clinical concept.
+- Signed SHAP values are summed across all model features that map to the
+  same clinical concept, including resolution channels, within-window
+  aggregations, and temporal descriptors defined by the current model matrix.
+  The grouping is therefore schema-driven rather than hard-coded to a legacy
+  feature count or descriptor inventory.
 - Demographics are grouped as Age, Gender, and Race.
 - The beeswarm color score is the mean percentile rank of constituent model
   features within the explained cohort. It is used only for Low/High visual
@@ -134,6 +134,20 @@ def grouped_shap(
     concepts = list(
         groups.keys()
     )
+
+    assigned = [
+        int(i)
+        for idx in groups.values()
+        for i in idx
+    ]
+    if len(assigned) != len(feature_names):
+        raise RuntimeError(
+            "Concept grouping does not assign exactly one group per model feature."
+        )
+    if sorted(assigned) != list(range(len(feature_names))):
+        raise RuntimeError(
+            "Concept grouping has missing or duplicate feature assignments."
+        )
 
     percentile = rank_percentile_columns(
         X
@@ -327,6 +341,11 @@ def plot_grouped_beeswarm(
         dpi=300,
         bbox_inches="tight",
     )
+    if output_path.suffix.lower() == ".png":
+        fig.savefig(
+            output_path.with_suffix(".pdf"),
+            bbox_inches="tight",
+        )
     plt.close(
         fig
     )
@@ -403,6 +422,11 @@ def plot_grouped_bar(
         dpi=300,
         bbox_inches="tight",
     )
+    if output_path.suffix.lower() == ".png":
+        fig.savefig(
+            output_path.with_suffix(".pdf"),
+            bbox_inches="tight",
+        )
     plt.close(
         fig
     )
@@ -446,6 +470,15 @@ def explain_task(
         feature_path,
     )
 
+    if len(matrix.feature_names) != matrix.X.shape[1]:
+        raise RuntimeError(
+            f"Feature-name width mismatch for {landmark}h/{variant}/{cohort}."
+        )
+    if len(set(matrix.feature_names)) != len(matrix.feature_names):
+        raise RuntimeError(
+            f"Duplicate model feature names for {landmark}h/{variant}/{cohort}."
+        )
+
     if outcome == "mortality":
         mask = matrix.mortality_known
     else:
@@ -462,6 +495,16 @@ def explain_task(
     patient_id = matrix.patient_id[
         mask
     ]
+
+    if len(X) == 0:
+        raise RuntimeError(
+            f"No eligible rows for SHAP: {landmark}h/{outcome}/{variant}/{cohort}."
+        )
+    if max_rows <= 0:
+        raise ValueError("--max-rows must be positive.")
+
+    n_eligible = int(len(X))
+    sampled = False
 
     if len(X) > max_rows:
         rng = np.random.default_rng(
@@ -480,6 +523,7 @@ def explain_task(
         patient_id = patient_id[
             selected
         ]
+        sampled = True
 
     task_output = task_dir(
         modeling_root,
@@ -487,6 +531,29 @@ def explain_task(
         outcome,
         variant,
     )
+    task_manifest_path = task_output / "task_manifest.json"
+    if not task_manifest_path.is_file():
+        raise FileNotFoundError(task_manifest_path)
+    task_manifest = load_json(task_manifest_path)
+
+    for key, expected in (
+        ("landmark_hour", landmark),
+        ("outcome", outcome),
+        ("variant", variant),
+    ):
+        if task_manifest.get(key) != expected:
+            raise RuntimeError(
+                f"Task-manifest mismatch for {key}: "
+                f"{task_manifest.get(key)!r} != {expected!r}"
+            )
+
+    manifest_feature_count = int(task_manifest.get("feature_count", -1))
+    if manifest_feature_count != X.shape[1]:
+        raise RuntimeError(
+            f"Feature-count mismatch: task manifest={manifest_feature_count}, "
+            f"matrix={X.shape[1]}."
+        )
+
     model_paths = sorted(
         (
             task_output
@@ -509,6 +576,7 @@ def explain_task(
     )
 
     fold_phi = []
+    max_additivity_error = 0.0
 
     for model_path in model_paths:
         model = xgb.Booster()
@@ -527,6 +595,31 @@ def explain_task(
         ):
             raise RuntimeError(
                 f"Unexpected SHAP contribution width from {model_path}."
+            )
+
+        margin = model.predict(
+            dmatrix,
+            output_margin=True,
+        )
+        reconstructed = np.sum(
+            contrib,
+            axis=1,
+        )
+        error = float(
+            np.max(
+                np.abs(
+                    reconstructed - margin
+                )
+            )
+        )
+        max_additivity_error = max(
+            max_additivity_error,
+            error,
+        )
+        if not np.isfinite(error) or error > 1e-3:
+            raise RuntimeError(
+                f"SHAP additivity check failed for {model_path}: "
+                f"max_abs_error={error:.6g}"
             )
 
         fold_phi.append(
@@ -634,8 +727,37 @@ def explain_task(
         ),
     )
 
+    shap_manifest = {
+        "landmark_hour": int(landmark),
+        "outcome": outcome,
+        "variant": variant,
+        "cohort": cohort,
+        "eligible_rows": n_eligible,
+        "explained_rows": int(len(X)),
+        "sampled": bool(sampled),
+        "sampling_seed": int(seed),
+        "max_rows": int(max_rows),
+        "feature_count": int(X.shape[1]),
+        "concept_group_count": int(len(concepts)),
+        "fold_models": int(len(model_paths)),
+        "shap_scale": "raw_margin",
+        "fold_aggregation": "mean_signed_shap",
+        "concept_aggregation": "sum_signed_shap_over_constituent_features",
+        "max_shap_additivity_error": float(max_additivity_error),
+        "task_manifest": str(task_manifest_path),
+        "hyperparameter_tuning_data_fingerprint_sha256": task_manifest.get(
+            "hyperparameter_tuning_data_fingerprint_sha256"
+        ),
+        "status": "PASS",
+    }
+    (figure_dir / "shap_manifest.json").write_text(
+        json.dumps(shap_manifest, indent=2),
+        encoding="utf-8",
+    )
+
     print(
         f"SHAP PASS | {title} | rows={len(X)}"
+        f"/{n_eligible} | sampled={sampled}"
     )
 
 
@@ -688,6 +810,11 @@ def main() -> int:
     )
     args = p.parse_args()
 
+    if args.max_rows <= 0:
+        p.error("--max-rows must be positive.")
+    if args.top_n <= 0:
+        p.error("--top-n must be positive.")
+
     project_root = (
         args.project_root
         .expanduser()
@@ -731,6 +858,15 @@ def main() -> int:
         if x.strip()
     ]
 
+    invalid_outcomes = sorted(set(outcomes) - {"los", "mortality"})
+    if invalid_outcomes:
+        p.error(f"Unsupported outcomes: {invalid_outcomes}")
+    invalid_cohorts = sorted(
+        set(cohorts) - {"mimic_test", "eicu_external"}
+    )
+    if invalid_cohorts:
+        p.error(f"Unsupported SHAP cohorts: {invalid_cohorts}")
+
     for landmark in landmarks:
         for outcome in outcomes:
             for variant in variants:
@@ -764,6 +900,7 @@ def main() -> int:
                         seed=args.seed,
                     )
 
+    print("SHAP stage complete.")
     return 0
 
 
