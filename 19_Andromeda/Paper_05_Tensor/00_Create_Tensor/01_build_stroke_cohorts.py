@@ -601,7 +601,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "MIMIC stroke ICD CSV. Default: "
-            "<project-root>/mimic_icd_stroke.csv"
+            "<project-root>/00_Create_Tensor/imports/mimic_icd_stroke.csv"
         ),
     )
     parser.add_argument(
@@ -610,7 +610,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "eICU stroke ICD CSV. Default: "
-            "<project-root>/eicu_icd_stroke.csv"
+            "<project-root>/00_Create_Tensor/imports/eicu_icd_stroke.csv"
         ),
     )
     parser.add_argument(

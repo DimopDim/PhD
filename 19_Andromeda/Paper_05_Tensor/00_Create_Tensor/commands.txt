@@ -1,5 +1,7 @@
 source ~/venvs/andromeda/bin/activate
 
+cd /home/ddimopoulos/Paper_05_Tensor/
+
 =======================================================
 01_build_stroke_cohorts.py
 =======================================================
