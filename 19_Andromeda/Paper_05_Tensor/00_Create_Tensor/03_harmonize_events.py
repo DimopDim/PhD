@@ -38,7 +38,7 @@ Scientific rules
 - No temporal aggregation occurs here.
 - No imputation occurs here.
 - Missing values remain missing.
-- One prespecified raw source is used per concept/database except MIMIC GCS,
+- One designated raw source mapping is used per concept/database except MIMIC GCS,
   which is constructed from Eye + Motor + Verbal only when all three are
   available at the same timestamp.
 - FiO2 is standardized to percentage (0-1 fractions -> 0-100%; >100 invalid).
@@ -259,7 +259,7 @@ def load_schema(path: Path) -> pd.DataFrame:
     if df["canonical_concept"].duplicated().any():
         raise ValueError("Duplicate canonical concepts in schema")
     if "Chloride (serum)" in set(df["canonical_concept"]):
-        raise ValueError("Chloride (serum) must not be in the 76-concept schema")
+        raise ValueError("Chloride (serum) must not be in the 75-concept primary schema")
     return df.sort_values("concept_order").reset_index(drop=True)
 
 
@@ -809,19 +809,46 @@ def main() -> int:
     conversion_df = pd.DataFrame(conversion_rows)
     conversion_df.to_csv(reports_dir / "conversion_audit.csv", index=False)
 
-    # Verify the final schema configuration expected by Stage 04.
+
+    # Verify the final schema configuration expected by downstream stages.
+    clinical_descriptors = len(schema) * len(config["aggregations"])
+    
+    demographic_schema = config["demographic_schema"]
+    age_features = int(demographic_schema["age_columns"])
+    gender_features = int(
+        demographic_schema["gender_columns_expected_after_frozen_encoding"]
+    )
+    race_features = int(
+        demographic_schema["race_columns_expected_after_frozen_encoding"]
+    )
+    
+    base_features = (
+        clinical_descriptors
+        + age_features
+        + gender_features
+        + race_features
+    )
+    
+    expected_base_features = int(
+        config["expected_base_features_per_temporal_step"]
+    )
+    
+    if base_features != expected_base_features:
+        raise ValueError(
+            "Stage-03 schema validation mismatch: "
+            f"computed {base_features} base features but pipeline_config expects "
+            f"{expected_base_features}."
+        )
+    
     manifest["schema_validation"] = {
         "clinical_concept_count": len(schema),
         "aggregations": config["aggregations"],
-        "clinical_descriptors_per_step": len(schema) * len(config["aggregations"]),
-        "age_features": 1,
-        "gender_features_expected": 3,
-        "race_features_expected": 33,
-        "base_features_per_step_expected": (
-            len(schema) * len(config["aggregations"]) + 1 + 3 + 33
-        ),
+        "clinical_descriptors_per_step": clinical_descriptors,
+        "age_features": age_features,
+        "gender_features_expected": gender_features,
+        "race_features_expected": race_features,
+        "base_features_per_step_expected": base_features,
     }
-
     manifest_path = output_dir / "03_harmonization_manifest.json"
     manifest_path.write_text(
         json.dumps(manifest, indent=2, ensure_ascii=False),
