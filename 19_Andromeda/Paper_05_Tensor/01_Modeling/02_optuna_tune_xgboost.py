@@ -49,8 +49,10 @@ This means even the fold used to score an Optuna trial is not used for early
 stopping.
 
 Optuna studies are persistent SQLite databases. Their database/study names
-include a deterministic fingerprint of the tuning patient set and feature
-schema, so a study from an earlier cohort or representation cannot be resumed
+include a deterministic final study identity that binds the exact loaded X/y
+values, ordered patient IDs, feature schema, fixed outer-fold assignment,
+tuning protocol, source-code hashes, and software versions. A study from an
+earlier cohort, matrix build, or tuning protocol therefore cannot be resumed
 silently after upstream revisions.
 """
 
@@ -70,6 +72,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
+import sklearn
 
 from sklearn.metrics import (
     average_precision_score,
@@ -198,6 +201,67 @@ def load_training_matrix(
     )
 
 
+def sha256_json_payload(payload: dict) -> str:
+    encoded = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def sha256_file(path: Path, chunk_size: int = 8 * 1024 * 1024) -> str:
+    path = Path(path)
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        while True:
+            chunk = f.read(chunk_size)
+            if not chunk:
+                break
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def sha256_numpy_array(values: np.ndarray) -> str:
+    """Hash exact ndarray values together with dtype and shape.
+
+    The array is made C-contiguous without changing dtype. Therefore the hash
+    binds the exact bytes loaded by the tuner, including NaN bit patterns, as
+    well as dimensionality and dtype.
+    """
+    arr = np.asarray(values)
+    contiguous = np.ascontiguousarray(arr)
+
+    h = hashlib.sha256()
+    header = {
+        "dtype": contiguous.dtype.str,
+        "shape": [int(x) for x in contiguous.shape],
+        "order": "C",
+    }
+    h.update(
+        json.dumps(
+            header,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    )
+    h.update(b"\n")
+    h.update(memoryview(contiguous).cast("B"))
+    return h.hexdigest()
+
+
+def sha256_string_sequence(values) -> str:
+    payload = [str(x) for x in values]
+    return hashlib.sha256(
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+
 def tuning_data_fingerprint(
     *,
     patient_id: np.ndarray,
@@ -207,11 +271,10 @@ def tuning_data_fingerprint(
     outcome: str,
     variant: str,
 ) -> str:
-    """
-    Build a deterministic fingerprint for the exact tuning population/schema.
+    """Backward-compatible population/schema fingerprint.
 
-    This prevents an Optuna SQLite study from a previous cohort or feature
-    schema from being silently resumed after the upstream pipeline changes.
+    This field is retained so revised outputs can be compared with earlier
+    audit artifacts. It is NOT used as the final Optuna study identity.
     """
     payload = {
         "patient_id": [str(x) for x in patient_id],
@@ -221,12 +284,7 @@ def tuning_data_fingerprint(
         "outcome": str(outcome),
         "variant": str(variant),
     }
-    encoded = json.dumps(
-        payload,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+    return sha256_json_payload(payload)
 
 
 def hyperparameter_dir(
@@ -628,6 +686,14 @@ def run_tuning_job(
         job["seed"]
     )
 
+    matrix_path, feature_path = matrix_cache_paths(
+        modeling_root,
+        tuning_landmark,
+        variant,
+        "mimic",
+        "train",
+    )
+
     matrix = load_training_matrix(
         modeling_root,
         tuning_landmark,
@@ -694,6 +760,12 @@ def run_tuning_job(
                 f"{job['outer_folds']}-fold CV: counts={counts.tolist()}."
             )
 
+    # ------------------------------------------------------------------
+    # Final data/protocol provenance.
+    # ------------------------------------------------------------------
+    # Keep the historic population/schema fingerprint for compatibility,
+    # but bind the persistent study identity to the actual loaded values and
+    # complete tuning protocol.
     data_fingerprint = tuning_data_fingerprint(
         patient_id=groups,
         feature_names=matrix.feature_names,
@@ -703,6 +775,32 @@ def run_tuning_job(
         variant=variant,
     )
 
+    patient_ids_sha256 = sha256_string_sequence(groups)
+    stay_ids_sha256 = sha256_string_sequence(matrix.stay_id)
+    feature_names_sha256 = sha256_string_sequence(matrix.feature_names)
+    x_values_sha256 = sha256_numpy_array(X)
+    y_values_sha256 = sha256_numpy_array(y)
+    matrix_file_sha256 = sha256_file(matrix_path)
+    feature_file_sha256 = sha256_file(feature_path)
+
+    tuner_source_path = Path(__file__).resolve()
+    modeling_common_source_path = tuner_source_path.with_name(
+        "modeling_common.py"
+    )
+    tuner_source_sha256 = sha256_file(tuner_source_path)
+    modeling_common_source_sha256 = sha256_file(
+        modeling_common_source_path
+    )
+
+    software_versions = {
+        "python": sys.version.split()[0],
+        "numpy": np.__version__,
+        "pandas": pd.__version__,
+        "scikit_learn": sklearn.__version__,
+        "xgboost": str(getattr(xgb, "__version__", "UNKNOWN")),
+        "optuna": str(getattr(optuna, "__version__", "UNKNOWN")),
+    }
+
     outer_splits = fixed_outer_splits(
         y,
         groups,
@@ -710,6 +808,33 @@ def run_tuning_job(
         seed,
         int(job["outer_folds"]),
     )
+
+    # Persist the fixed outer validation-fold assignment for auditability.
+    # Every patient must appear exactly once as an outer-validation patient.
+    fold_assignment = np.full(
+        len(groups),
+        -1,
+        dtype=np.int16,
+    )
+
+    for fold, (_, valid_idx) in enumerate(
+        outer_splits,
+        start=1,
+    ):
+        if np.any(
+            fold_assignment[valid_idx] != -1
+        ):
+            raise RuntimeError(
+                "A patient was assigned to more than one outer "
+                "validation fold."
+            )
+
+        fold_assignment[valid_idx] = fold
+
+    if np.any(fold_assignment == -1):
+        raise RuntimeError(
+            "At least one tuning patient was not assigned to an outer fold."
+        )
 
     out_dir = hyperparameter_dir(
         modeling_root,
@@ -722,23 +847,137 @@ def run_tuning_job(
         exist_ok=True,
     )
 
-    fingerprint_short = data_fingerprint[:12]
-    db_path = out_dir / f"study_{fingerprint_short}.db"
+    outer_fold_path = (
+        out_dir
+        / "outer_fold_assignments.csv"
+    )
+
+    pd.DataFrame(
+        {
+            "patient_id": groups,
+            "fold": fold_assignment,
+            "landmark_hour": tuning_landmark,
+            "outcome": outcome,
+            "variant": variant,
+        }
+    ).to_csv(
+        outer_fold_path,
+        index=False,
+    )
+    outer_fold_assignments_sha256 = sha256_file(outer_fold_path)
+
+    sampler_seed = (
+        seed
+        + tuning_landmark * 10
+        + sum(ord(c) for c in outcome + variant)
+    )
+
+    protocol_payload = {
+        "protocol_version": "P5_OPTUNA_FINAL_PROVENANCE_V1",
+        "tuning_landmark_hour": int(tuning_landmark),
+        "outcome": outcome,
+        "variant": variant,
+        "direction": direction,
+        "objective_name": objective_name,
+        "target_total_trials": int(job["trials"]),
+        "seed": int(seed),
+        "outer_folds": int(job["outer_folds"]),
+        "inner_early_stopping_fraction": float(
+            job["inner_es_fraction"]
+        ),
+        "max_boost_rounds": int(job["num_boost_round"]),
+        "early_stopping_rounds": int(
+            job["early_stopping_rounds"]
+        ),
+        "xgb_threads": int(job["xgb_threads"]),
+        "fixed_xgb_params": FIXED_XGB_PARAMS,
+        "search_space": SEARCH_SPACE_DESCRIPTION,
+        "sampler": {
+            "class": "TPESampler",
+            "multivariate": True,
+            "n_startup_trials": 10,
+            "seed": int(sampler_seed),
+        },
+        "pruner": {
+            "class": "MedianPruner",
+            "n_startup_trials": 8,
+            "n_warmup_steps": 2,
+            "interval_steps": 1,
+        },
+        "inner_split_seed_rule": (
+            "seed + 10000 + trial.number*100 + fold"
+        ),
+        "xgb_trial_seed_rule": "seed + trial.number",
+        "los_outer_splitter": (
+            "GroupKFold(shuffle=True, random_state=seed)"
+        ),
+        "mortality_outer_splitter": (
+            "StratifiedGroupKFold(shuffle=True, random_state=seed)"
+        ),
+        "los_tuning_metric": "mean outer-fold RMSE",
+        "mortality_tuning_metric": "mean outer-fold Average Precision",
+        "los_early_stopping_metric": "rmse",
+        "mortality_early_stopping_metric": "logloss",
+    }
+    tuning_config_sha256 = sha256_json_payload(protocol_payload)
+
+    study_identity_payload = {
+        "identity_version": "P5_OPTUNA_STUDY_IDENTITY_V1",
+        "tuning_data_fingerprint_sha256": data_fingerprint,
+        "patient_ids_sha256": patient_ids_sha256,
+        "stay_ids_sha256": stay_ids_sha256,
+        "feature_names_sha256": feature_names_sha256,
+        "x_values_sha256": x_values_sha256,
+        "y_values_sha256": y_values_sha256,
+        "matrix_file_sha256": matrix_file_sha256,
+        "feature_file_sha256": feature_file_sha256,
+        "outer_fold_assignments_sha256": (
+            outer_fold_assignments_sha256
+        ),
+        "tuning_config_sha256": tuning_config_sha256,
+        "tuner_source_sha256": tuner_source_sha256,
+        "modeling_common_source_sha256": (
+            modeling_common_source_sha256
+        ),
+        "software_versions": software_versions,
+    }
+    study_identity_sha256 = sha256_json_payload(
+        study_identity_payload
+    )
+    study_identity_short = study_identity_sha256[:16]
+
+    study_identity_record = {
+        "study_identity_sha256": study_identity_sha256,
+        "study_identity_short": study_identity_short,
+        "study_identity_payload": study_identity_payload,
+        "protocol_payload": protocol_payload,
+        "matrix_file": str(matrix_path),
+        "feature_names_file": str(feature_path),
+        "outer_fold_assignments_file": str(outer_fold_path),
+        "development_patients": int(len(y)),
+        "feature_count": int(X.shape[1]),
+    }
+    study_identity_path = out_dir / "study_identity.json"
+    study_identity_path.write_text(
+        json.dumps(study_identity_record, indent=2),
+        encoding="utf-8",
+    )
+
+    # The persistent DB/study key now uses the full final study identity, not
+    # the legacy population/schema fingerprint. This prevents silent reuse if
+    # X/y values, folds, code, protocol, or software versions change.
+    db_path = out_dir / f"study_{study_identity_short}.db"
     storage = (
         "sqlite:///"
         + str(db_path.resolve())
     )
     study_name = (
         f"xgb_{outcome}_{variant}_{tuning_landmark:03d}h_"
-        f"{fingerprint_short}"
+        f"{study_identity_short}"
     )
 
     sampler = optuna.samplers.TPESampler(
-        seed=(
-            seed
-            + tuning_landmark * 10
-            + sum(ord(c) for c in outcome + variant)
-        ),
+        seed=int(sampler_seed),
         multivariate=True,
         n_startup_trials=10,
     )
@@ -838,6 +1077,8 @@ def run_tuning_job(
         []
     )
 
+    fingerprint_short = data_fingerprint[:12]
+
     result = {
         "tuning_landmark_hour": tuning_landmark,
         "tuning_landmark_policy": (
@@ -876,15 +1117,43 @@ def run_tuning_job(
         ),
         "tuning_data_fingerprint_sha256": data_fingerprint,
         "tuning_data_fingerprint_short": fingerprint_short,
+        "patient_ids_sha256": patient_ids_sha256,
+        "stay_ids_sha256": stay_ids_sha256,
+        "feature_names_sha256": feature_names_sha256,
+        "x_values_sha256": x_values_sha256,
+        "y_values_sha256": y_values_sha256,
+        "matrix_file": str(matrix_path),
+        "matrix_file_sha256": matrix_file_sha256,
+        "feature_names_file": str(feature_path),
+        "feature_names_file_sha256": feature_file_sha256,
+        "outer_fold_assignments_sha256": outer_fold_assignments_sha256,
+        "tuning_config_sha256": tuning_config_sha256,
+        "study_identity_sha256": study_identity_sha256,
+        "study_identity_short": study_identity_short,
+        "study_identity_version": "P5_OPTUNA_STUDY_IDENTITY_V1",
+        "study_identity_file": str(study_identity_path),
+        "tuner_source_file": str(tuner_source_path),
+        "tuner_source_sha256": tuner_source_sha256,
+        "modeling_common_source_file": str(
+            modeling_common_source_path
+        ),
+        "modeling_common_source_sha256": modeling_common_source_sha256,
+        "software_versions": software_versions,
+        "protocol_payload": protocol_payload,
         "study_reuse_policy": (
-            "resume only when tuning population and feature schema fingerprint "
-            "are unchanged"
+            "resume only when the final study identity is unchanged; identity "
+            "binds actual X/y values, ordered patient/stay IDs and features, outer folds, "
+            "tuning protocol, source-code hashes, and software versions"
         ),
         "outer_folds": int(
             job["outer_folds"]
         ),
         "cross_validation_unit": "patient_id",
         "patient_group_overlap_allowed": False,
+        "outer_fold_assignments_file": str(
+            outer_fold_path
+        ),
+        "outer_fold_assignment_complete": True,
         "identifiers_used_as_predictors": False,
         "inner_early_stopping_fraction": float(
             job[
@@ -988,6 +1257,16 @@ def run_tuning_job(
             X.shape[1]
         ),
         "tuning_data_fingerprint_short": fingerprint_short,
+        "study_identity_short": study_identity_short,
+        "study_identity_sha256": study_identity_sha256,
+        "study_identity_file": str(study_identity_path),
+        "x_values_sha256": x_values_sha256,
+        "y_values_sha256": y_values_sha256,
+        "stay_ids_sha256": stay_ids_sha256,
+        "outer_fold_assignments_file": str(
+            outer_fold_path
+        ),
+        "outer_fold_assignments_sha256": outer_fold_assignments_sha256,
         "best_params_file": str(
             out_dir / "best_params.json"
         ),
@@ -1244,8 +1523,11 @@ def main() -> int:
         "MIMIC test/eICU are not loaded by the tuner."
     )
     logger.info(
-        "Persistent Optuna studies are keyed by a tuning-data/schema "
-        "fingerprint; stale studies from earlier cohorts are not resumed."
+        "Persistent Optuna studies are keyed by a final identity binding "
+        "actual X/y values, folds, protocol, code hashes, and software versions."
+    )
+    logger.info(
+        "Fixed outer validation-fold assignments are exported per study."
     )
     logger.info(
         "Early stopping rounds: %d",
@@ -1384,9 +1666,22 @@ def main() -> int:
         "max_boost_rounds": int(args.num_boost_round),
         "early_stopping_rounds": int(args.early_stopping_rounds),
         "persistent_study_policy": (
-            "SQLite studies are fingerprinted by the exact MIMIC development "
-            "patient set and feature schema, preventing silent reuse after "
-            "upstream cohort/schema changes"
+            "SQLite studies are keyed by a final study identity that binds "
+            "actual loaded X/y values, ordered patient/stay IDs and feature names, "
+            "outer-fold assignments, tuning protocol, source-code hashes, "
+            "and software versions; legacy population/schema fingerprint is "
+            "retained only for backward audit comparison"
+        ),
+        "study_identity_version": "P5_OPTUNA_STUDY_IDENTITY_V1",
+        "legacy_population_schema_fingerprint_retained": True,
+        "actual_x_values_hashed": True,
+        "actual_y_values_hashed": True,
+        "source_code_hashed": True,
+        "software_versions_recorded": True,
+        "outer_fold_assignment_exported": True,
+        "outer_fold_assignment_policy": (
+            "Each outcome×representation study exports one fixed outer "
+            "validation-fold label per MIMIC development patient."
         ),
         "studies": results,
     }
