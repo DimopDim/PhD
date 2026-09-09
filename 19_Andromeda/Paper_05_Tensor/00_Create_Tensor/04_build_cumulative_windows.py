@@ -1964,7 +1964,7 @@ def main() -> int:
             for key, hours in RESOLUTIONS.items()
         },
         "later_expected_base_features_primary": (
-            "300 clinical + 1 age + 3 gender + 33 race = 334"
+            "300 clinical + 1 age + 3 gender + 30 race = 334"
         ),
         "workers": int(workers),
         "patients_per_task": int(
