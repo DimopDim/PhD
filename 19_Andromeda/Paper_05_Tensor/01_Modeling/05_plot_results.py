@@ -15,6 +15,12 @@ Global:
 - mortality Average Precision vs landmark
 - mortality Brier score vs landmark
 
+Summary-figure visual encoding:
+- colour = temporal representation
+- solid line = MIMIC-IV internal test
+- dashed line = eICU-CRD external evaluation
+- marker shape = temporal representation
+
 Per task/cohort:
 - LOS observed vs predicted
 - LOS residuals vs predicted
@@ -33,6 +39,7 @@ import math
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 import numpy as np
 import pandas as pd
 
@@ -54,6 +61,7 @@ def save_figure(
     fig,
     path: Path,
 ):
+    """Save publication-quality raster plus vector companion."""
     path.parent.mkdir(
         parents=True,
         exist_ok=True,
@@ -64,6 +72,11 @@ def save_figure(
         dpi=300,
         bbox_inches="tight",
     )
+    if path.suffix.lower() == ".png":
+        fig.savefig(
+            path.with_suffix(".pdf"),
+            bbox_inches="tight",
+        )
     plt.close(
         fig
     )
@@ -77,17 +90,23 @@ def plot_metric_vs_landmark(
     ylabel: str,
     output_path: Path,
 ):
+    """
+    Plot landmark trajectories with a consistent visual grammar.
+
+    Encoding:
+    - colour = representation
+    - line style = evaluation cohort/database
+      * MIMIC internal test: solid
+      * eICU external: dashed
+    - marker shape = representation
+
+    This keeps the same representation visually identifiable across databases
+    and makes internal versus external evaluation immediately distinguishable.
+    """
     data = metrics.loc[
-        metrics[
-            "outcome"
-        ].eq(outcome)
-        & metrics[
-            "cohort"
-        ].isin(
-            [
-                "mimic_test",
-                "eicu_external",
-            ]
+        metrics["outcome"].eq(outcome)
+        & metrics["cohort"].isin(
+            ["mimic_test", "eicu_external"]
         )
     ].copy()
 
@@ -98,67 +117,177 @@ def plot_metric_vs_landmark(
     if metric not in data.columns:
         raise RuntimeError(f"Missing metric column: {metric}")
     if data[metric].isna().any():
-        bad = data.loc[data[metric].isna(), ["landmark_hour", "variant", "cohort"]]
+        bad = data.loc[
+            data[metric].isna(),
+            ["landmark_hour", "variant", "cohort"],
+        ]
         raise RuntimeError(
             f"NaN values in {metric}:\n{bad.to_string(index=False)}"
         )
 
+    preferred_variant_order = [
+        "static",
+        "o1",
+        "o2",
+        "o3",
+        "o4",
+        "full",
+    ]
+    variants = [
+        v
+        for v in preferred_variant_order
+        if v in set(data["variant"].astype(str))
+    ]
+    extras = sorted(
+        set(data["variant"].astype(str)) - set(variants)
+    )
+    variants.extend(extras)
+
+    # Use Matplotlib's active default colour cycle, but bind colours
+    # deterministically to representations so that the same representation
+    # has the same colour in MIMIC and eICU.
+    default_colors = plt.rcParams[
+        "axes.prop_cycle"
+    ].by_key().get("color", [])
+    if len(default_colors) < len(variants):
+        raise RuntimeError(
+            "Active Matplotlib colour cycle has too few colours "
+            f"for {len(variants)} representations."
+        )
+    variant_color = {
+        variant: default_colors[i]
+        for i, variant in enumerate(variants)
+    }
+
+    marker_cycle = ["o", "s", "^", "D", "P", "X"]
+    variant_marker = {
+        variant: marker_cycle[i % len(marker_cycle)]
+        for i, variant in enumerate(variants)
+    }
+
+    cohort_style = {
+        "mimic_test": "-",
+        "eicu_external": "--",
+    }
+    cohort_label = {
+        "mimic_test": "MIMIC-IV internal test",
+        "eicu_external": "eICU-CRD external",
+    }
+
     fig, ax = plt.subplots(
-        figsize=(8, 5)
+        figsize=(8.6, 5.4)
     )
 
-    for (
-        cohort,
-        variant,
-    ), group in data.groupby(
-        [
-            "cohort",
-            "variant",
-        ]
-    ):
-        group = group.sort_values(
-            "landmark_hour"
-        )
-        ax.plot(
-            group[
-                "landmark_hour"
-            ],
-            group[
-                metric
-            ],
-            marker="o",
-            label=(
-                f"{variant} | "
-                f"{cohort.replace('_', ' ')}"
-            ),
-        )
+    for cohort in ["mimic_test", "eicu_external"]:
+        for variant in variants:
+            group = data.loc[
+                data["cohort"].eq(cohort)
+                & data["variant"].eq(variant)
+            ].sort_values("landmark_hour")
+
+            if group.empty:
+                continue
+
+            ax.plot(
+                group["landmark_hour"],
+                group[metric],
+                color=variant_color[variant],
+                linestyle=cohort_style[cohort],
+                marker=variant_marker[variant],
+                markersize=5.5,
+                markeredgewidth=0.8,
+                linewidth=1.8,
+                alpha=0.95,
+            )
 
     ax.set_xlabel(
-        "Landmark hour"
+        "Landmark time (h)",
+        fontsize=11,
     )
     ax.set_ylabel(
-        ylabel
+        ylabel,
+        fontsize=11,
     )
     ax.set_xticks(
-        sorted(
-            data[
-                "landmark_hour"
-            ].unique()
-        )
+        sorted(data["landmark_hour"].unique())
+    )
+    ax.tick_params(
+        axis="both",
+        labelsize=9.5,
+    )
+
+    # Light horizontal guide only; avoid visually competing with trajectories.
+    ax.grid(
+        axis="y",
+        alpha=0.20,
+        linewidth=0.8,
     )
     ax.grid(
-        alpha=0.25
+        axis="x",
+        visible=False,
     )
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    representation_handles = [
+        Line2D(
+            [0],
+            [0],
+            color=variant_color[v],
+            linestyle="-",
+            marker=variant_marker[v],
+            linewidth=1.8,
+            markersize=5.5,
+            label=v,
+        )
+        for v in variants
+    ]
+    cohort_handles = [
+        Line2D(
+            [0],
+            [0],
+            color="black",
+            linestyle=cohort_style[c],
+            linewidth=1.8,
+            label=cohort_label[c],
+        )
+        for c in ["mimic_test", "eicu_external"]
+    ]
+
+    representation_legend = ax.legend(
+        handles=representation_handles,
+        title="Representation",
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1.00),
+        borderaxespad=0.0,
+        frameon=False,
+        fontsize=8.8,
+        title_fontsize=9.2,
+    )
+    ax.add_artist(
+        representation_legend
+    )
+
     ax.legend(
-        fontsize=8,
-        ncol=2,
+        handles=cohort_handles,
+        title="Evaluation cohort",
+        loc="lower left",
+        bbox_to_anchor=(1.01, 0.00),
+        borderaxespad=0.0,
+        frameon=False,
+        fontsize=8.8,
+        title_fontsize=9.2,
+    )
+
+    fig.subplots_adjust(
+        right=0.74
     )
 
     save_figure(
         fig,
         output_path,
     )
-
 
 def load_predictions(
     task_dir: Path,
