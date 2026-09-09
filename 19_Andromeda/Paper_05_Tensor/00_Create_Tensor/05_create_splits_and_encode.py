@@ -2750,7 +2750,7 @@ def main() -> int:
         "mortality_target": (
             "in-hospital mortality among patients still in ICU at t"
         ),
-        "split_created_once_on_full_mimic_cohort": False,
+        "split_created_once_on_full_mimic_cohort": True,
         "split_strategy": (
             "original patient-level MIMIC train/test assignment preserved "
             "exactly for all legacy patients; only newly included patients "
