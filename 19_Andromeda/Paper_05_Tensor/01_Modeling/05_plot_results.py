@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-04_plot_results.py
+05_plot_results.py
 
 Generate publication-oriented XGBoost evaluation figures.
 
@@ -28,6 +28,7 @@ Train curves are intentionally not plotted.
 from __future__ import annotations
 
 import argparse
+import json
 import math
 from pathlib import Path
 
@@ -91,7 +92,16 @@ def plot_metric_vs_landmark(
     ].copy()
 
     if data.empty:
-        return
+        raise RuntimeError(
+            f"No internal/external rows for outcome={outcome}, metric={metric}."
+        )
+    if metric not in data.columns:
+        raise RuntimeError(f"Missing metric column: {metric}")
+    if data[metric].isna().any():
+        bad = data.loc[data[metric].isna(), ["landmark_hour", "variant", "cohort"]]
+        raise RuntimeError(
+            f"NaN values in {metric}:\n{bad.to_string(index=False)}"
+        )
 
     fig, ax = plt.subplots(
         figsize=(8, 5)
@@ -461,12 +471,47 @@ def main() -> int:
     )
     if not metrics_path.is_file():
         raise FileNotFoundError(
-            f"{metrics_path}. Run 03_collect_metrics.py first."
+            f"{metrics_path}. Run 04_collect_metrics.py first."
         )
 
     metrics = pd.read_csv(
         metrics_path
     )
+
+    required_columns = {
+        "outcome", "landmark_hour", "variant", "cohort", "n"
+    }
+    missing = required_columns - set(metrics.columns)
+    if missing:
+        raise RuntimeError(
+            f"all_metrics.csv missing required columns: {sorted(missing)}"
+        )
+    if metrics.empty:
+        raise RuntimeError("all_metrics.csv is empty.")
+    if metrics.duplicated(
+        ["outcome", "landmark_hour", "variant", "cohort"]
+    ).any():
+        raise RuntimeError("Duplicate task/cohort rows in all_metrics.csv.")
+
+    collection_manifest_path = (
+        modeling_root / "reports" / "metrics_collection_manifest.json"
+    )
+    if collection_manifest_path.is_file():
+        collection_manifest = json.loads(
+            collection_manifest_path.read_text(encoding="utf-8")
+        )
+        if collection_manifest.get("status") != "PASS":
+            raise RuntimeError(
+                "Metric collection manifest is not PASS."
+            )
+        expected_rows = int(
+            collection_manifest.get("aggregate_metric_rows", -1)
+        )
+        if expected_rows != len(metrics):
+            raise RuntimeError(
+                f"Metric row-count mismatch: manifest={expected_rows}, "
+                f"all_metrics.csv={len(metrics)}."
+            )
 
     figure_root = (
         modeling_root
@@ -512,19 +557,21 @@ def main() -> int:
         ),
     ]
 
+    generated_summary = []
     for outcome, metric, ylabel, filename in global_specs:
-        if metric in metrics.columns:
-            plot_metric_vs_landmark(
-                metrics,
-                outcome=outcome,
-                metric=metric,
-                ylabel=ylabel,
-                output_path=(
-                    figure_root
-                    / "summary"
-                    / filename
-                ),
+        if metric not in metrics.columns:
+            raise RuntimeError(
+                f"Required plotting metric missing from all_metrics.csv: {metric}"
             )
+        output_path = figure_root / "summary" / filename
+        plot_metric_vs_landmark(
+            metrics,
+            outcome=outcome,
+            metric=metric,
+            ylabel=ylabel,
+            output_path=output_path,
+        )
+        generated_summary.append(str(output_path))
 
     if args.task_plots:
         task_metrics = metrics.loc[
@@ -582,8 +629,21 @@ def main() -> int:
                     output_dir=output,
                 )
 
+    plot_manifest = {
+        "source_metrics": str(metrics_path),
+        "metric_rows": int(len(metrics)),
+        "summary_figures": generated_summary,
+        "task_plots_requested": bool(args.task_plots),
+        "status": "PASS",
+    }
+    figure_root.mkdir(parents=True, exist_ok=True)
+    (figure_root / "05_plot_manifest.json").write_text(
+        json.dumps(plot_manifest, indent=2),
+        encoding="utf-8",
+    )
+
     print(
-        f"Figures written under {figure_root}"
+        f"PASS: figures written under {figure_root}"
     )
     return 0
 
