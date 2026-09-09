@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-06_bootstrap_landmark_analysis.py
+07_bootstrap_landmark_analysis.py
 
 Patient-level bootstrap uncertainty analysis for the dynamic-landmark
 Paper_05_Tensor XGBoost pipeline.
 
 The script DOES NOT refit models and DOES NOT rerun Optuna. It reads the
-patient-level prediction parquet files already produced by 02_train_xgboost.py.
+patient-level prediction parquet files already produced by 03_train_xgboost.py.
 
 Outputs
 -------
@@ -18,7 +18,8 @@ Outputs
    each comparator at the same landmark.
 
 3. paired_landmark_common_riskset.csv
-   Paired comparisons across landmarks on a common risk set. For LOS, each
+   Paired comparisons across landmarks on block-specific common risk sets.
+   The default blocks are 4--24 h and 24--48 h. For LOS, each
    remaining-LOS prediction is converted to predicted total LOS before the
    cross-landmark comparison:
        predicted_total_LOS = landmark_hours / 24 + predicted_remaining_LOS
@@ -26,7 +27,7 @@ Outputs
    This guarantees that all compared landmarks are evaluated against the
    same patient-level target in the same patients.
 
-The prediction layout is expected to match 02_train_xgboost.py:
+The prediction layout is expected to match 03_train_xgboost.py:
 
 results/
   landmark_020h/
@@ -79,7 +80,7 @@ DEFAULT_LANDMARKS = (1, 4, 8, 12, 16, 20, 24, 36, 48)
 DEFAULT_VARIANTS = ("full", "o1", "o2", "o3", "o4", "static")
 DEFAULT_COHORTS = ("mimic_test", "eicu_external")
 DEFAULT_OUTCOMES = ("los", "mortality")
-DEFAULT_COMMON_RISK_LANDMARKS = (16, 20, 24)
+DEFAULT_COMMON_RISK_BLOCKS = ((4, 8, 12, 16, 20, 24), (24, 36, 48))
 
 HIGHER_IS_BETTER = {
     "r2",
@@ -104,6 +105,26 @@ def parse_csv_strings(text: str) -> List[str]:
 
 def parse_csv_ints(text: str) -> List[int]:
     return sorted({int(x.strip()) for x in text.split(",") if x.strip()})
+
+
+def parse_common_risk_blocks(text: str) -> List[List[int]]:
+    """
+    Parse semicolon-separated landmark blocks, e.g.
+        "4,8,12,16,20,24;24,36,48"
+    Each block defines its own common risk set.
+    """
+    blocks: List[List[int]] = []
+    for raw_block in text.split(";"):
+        raw_block = raw_block.strip()
+        if not raw_block:
+            continue
+        block = parse_csv_ints(raw_block)
+        if len(block) < 2:
+            raise ValueError(
+                f"Each common-risk block must contain >=2 landmarks: {raw_block!r}"
+            )
+        blocks.append(block)
+    return blocks
 
 
 def stable_seed(base_seed: int, *parts: object) -> int:
@@ -188,6 +209,20 @@ def load_prediction_frame(
         raise ValueError(f"Unknown outcome: {outcome}")
 
     out = out[cols].copy()
+
+    if outcome == "los":
+        if (out["y_true"] <= 0).any():
+            raise ValueError(f"{label}: remaining LOS target must be > 0.")
+    else:
+        y_unique = set(out["y_true"].astype(int).unique().tolist())
+        if not y_unique.issubset({0, 1}):
+            raise ValueError(
+                f"{label}: mortality labels must be binary 0/1; got {sorted(y_unique)}"
+            )
+        if ((out["prediction"] < 0) | (out["prediction"] > 1)).any():
+            raise ValueError(
+                f"{label}: mortality probabilities must lie in [0,1]."
+            )
 
     finite_mask = (
         np.isfinite(out["y_true"].to_numpy(dtype=float))
@@ -790,6 +825,82 @@ def run_parallel(
     return rows
 
 
+def load_training_task_summary(modeling_root: Path) -> pd.DataFrame:
+    """
+    Load the canonical Stage-03 training summary and fail closed on stale or
+    incomplete training state.
+    """
+    path = modeling_root / "reports" / "training_task_summary.csv"
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"{path}. Run 03_train_xgboost.py before bootstrap analysis."
+        )
+
+    df = pd.read_csv(path)
+    required = {"landmark_hour", "outcome", "variant", "status"}
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(
+            f"{path} missing required columns: {sorted(missing)}"
+        )
+    if df.empty:
+        raise ValueError(f"{path} is empty.")
+    if not df["status"].eq("PASS").all():
+        bad = df.loc[~df["status"].eq("PASS")]
+        raise ValueError(
+            "Stage-03 training summary contains non-PASS tasks:\n"
+            + bad.to_string(index=False)
+        )
+
+    keys = ["landmark_hour", "outcome", "variant"]
+    if df.duplicated(keys).any():
+        dup = df.loc[df.duplicated(keys, keep=False), keys]
+        raise ValueError(
+            "Duplicate Stage-03 task rows detected:\n"
+            + dup.to_string(index=False)
+        )
+    return df
+
+
+def validate_task_manifest(
+    modeling_root: Path,
+    landmark: int,
+    outcome: str,
+    variant: str,
+) -> dict:
+    path = (
+        modeling_root
+        / "results"
+        / f"landmark_{landmark:03d}h"
+        / outcome
+        / variant
+        / "task_manifest.json"
+    )
+    if not path.is_file():
+        raise FileNotFoundError(path)
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    for key, expected in (
+        ("landmark_hour", landmark),
+        ("outcome", outcome),
+        ("variant", variant),
+    ):
+        if payload.get(key) != expected:
+            raise ValueError(
+                f"{path}: {key}={payload.get(key)!r}, expected={expected!r}"
+            )
+
+    if payload.get("hyperparameter_source") != "optuna":
+        raise ValueError(
+            f"{path}: expected hyperparameter_source='optuna'."
+        )
+    if not payload.get("hyperparameter_tuning_data_fingerprint_sha256"):
+        raise ValueError(
+            f"{path}: missing revised tuning-data fingerprint."
+        )
+    return payload
+
+
 def available_prediction_specs(
     *,
     modeling_root: Path,
@@ -797,11 +908,32 @@ def available_prediction_specs(
     outcomes: Sequence[str],
     variants: Sequence[str],
     cohorts: Sequence[str],
+    training_summary: pd.DataFrame,
 ) -> List[Tuple[int, str, str, str, Path]]:
-    specs = []
+    """
+    Return only predictions belonging to canonical PASS Stage-03 tasks.
+
+    Files present on disk but absent from training_task_summary.csv are ignored
+    and cannot silently enter the revised analysis.
+    """
+    allowed_tasks = {
+        (int(r.landmark_hour), str(r.outcome), str(r.variant))
+        for r in training_summary.itertuples(index=False)
+    }
+
+    specs: List[Tuple[int, str, str, str, Path]] = []
     for landmark in landmarks:
         for outcome in outcomes:
             for variant in variants:
+                task_key = (landmark, outcome, variant)
+                if task_key not in allowed_tasks:
+                    continue
+
+                # Validate task provenance once before accepting any cohort file.
+                validate_task_manifest(
+                    modeling_root, landmark, outcome, variant
+                )
+
                 for cohort in cohorts:
                     path = prediction_path(
                         modeling_root,
@@ -810,10 +942,14 @@ def available_prediction_specs(
                         variant,
                         cohort,
                     )
-                    if path.is_file():
-                        specs.append(
-                            (landmark, outcome, variant, cohort, path)
+                    if not path.is_file():
+                        raise FileNotFoundError(
+                            "Canonical PASS task is missing prediction file: "
+                            f"{path}"
                         )
+                    specs.append(
+                        (landmark, outcome, variant, cohort, path)
+                    )
     return specs
 
 
@@ -835,7 +971,7 @@ def make_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description=(
             "Bootstrap CIs and paired dynamic-landmark comparisons using "
-            "the patient-level predictions produced by 02_train_xgboost.py."
+            "the patient-level predictions produced by 03_train_xgboost.py."
         )
     )
     p.add_argument(
@@ -900,11 +1036,14 @@ def make_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
-        "--common-risk-landmarks",
-        default=",".join(map(str, DEFAULT_COMMON_RISK_LANDMARKS)),
+        "--common-risk-blocks",
+        default=";".join(
+            ",".join(map(str, block))
+            for block in DEFAULT_COMMON_RISK_BLOCKS
+        ),
         help=(
-            "Landmarks compared on one common risk set, e.g. 16,20,24. "
-            "Leave empty to skip."
+            "Semicolon-separated landmark blocks. Each block defines its own "
+            "common risk set. Default: 4,8,12,16,20,24;24,36,48"
         ),
     )
     p.add_argument(
@@ -914,7 +1053,7 @@ def make_arg_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--common-risk-pairs",
         choices=("adjacent", "all"),
-        default="adjacent",
+        default="all",
         help="Compare adjacent landmarks or all pairwise landmark combinations.",
     )
     p.add_argument(
@@ -960,6 +1099,16 @@ def main() -> int:
     if invalid_outcomes:
         raise ValueError(f"Invalid outcomes: {invalid_outcomes}")
 
+    invalid_variants = sorted(set(variants) - set(DEFAULT_VARIANTS))
+    if invalid_variants:
+        raise ValueError(f"Invalid variants: {invalid_variants}")
+
+    invalid_cohorts = sorted(set(cohorts) - set(DEFAULT_COHORTS))
+    if invalid_cohorts:
+        raise ValueError(f"Invalid cohorts: {invalid_cohorts}")
+
+    training_summary = load_training_task_summary(modeling_root)
+
     output_dir = (
         args.output_dir.resolve()
         if args.output_dir is not None
@@ -975,6 +1124,7 @@ def main() -> int:
         outcomes=outcomes,
         variants=variants,
         cohorts=cohorts,
+        training_summary=training_summary,
     )
     if not available:
         raise RuntimeError(
@@ -1122,61 +1272,62 @@ def main() -> int:
     )
 
     # ------------------------------------------------------------------
-    # 3) Cross-landmark paired comparison on a common risk set
+    # 3) Cross-landmark paired comparisons on block-specific common risk sets
     # ------------------------------------------------------------------
     common_rows: List[Dict[str, object]] = []
-    common_landmarks = (
-        parse_csv_ints(args.common_risk_landmarks)
-        if args.common_risk_landmarks.strip()
+    common_blocks = (
+        parse_common_risk_blocks(args.common_risk_blocks)
+        if args.common_risk_blocks.strip()
         else []
     )
 
-    if (
-        not args.skip_common_risk
-        and len(common_landmarks) >= 2
-    ):
+    if not args.skip_common_risk and common_blocks:
         common_specs = []
-        for outcome in outcomes:
-            for cohort in cohorts:
-                required = [
-                    (
-                        landmark,
-                        outcome,
-                        args.common_risk_variant,
-                        cohort,
-                    )
-                    for landmark in common_landmarks
-                ]
-                if not all(key in available_keys for key in required):
-                    print(
-                        "[common-risk] skipping "
-                        f"{cohort}/{outcome}/{args.common_risk_variant}: "
-                        "one or more requested prediction files are missing.",
-                        flush=True,
-                    )
-                    continue
 
-                common_specs.append(
-                    {
-                        "modeling_root": str(modeling_root),
-                        "landmarks": common_landmarks,
-                        "outcome": outcome,
-                        "variant": args.common_risk_variant,
-                        "cohort": cohort,
-                        "mortality_probability": args.mortality_probability,
-                        "n_bootstrap": args.bootstrap,
-                        "ci": args.ci,
-                        "seed": stable_seed(
-                            args.seed,
-                            "common-risk",
+        for block in common_blocks:
+            for outcome in outcomes:
+                for cohort in cohorts:
+                    required = [
+                        (
+                            landmark,
                             outcome,
-                            cohort,
                             args.common_risk_variant,
-                            *common_landmarks,
-                        ),
-                        "pair_mode": args.common_risk_pairs,
-                    }
-                )
+                            cohort,
+                        )
+                        for landmark in block
+                    ]
+                    missing_required = [
+                        key for key in required if key not in available_keys
+                    ]
+                    if missing_required:
+                        raise RuntimeError(
+                            "Canonical common-risk block is incomplete. "
+                            f"block={block}, outcome={outcome}, cohort={cohort}, "
+                            f"variant={args.common_risk_variant}, "
+                            f"missing={missing_required}"
+                        )
+
+                    common_specs.append(
+                        {
+                            "modeling_root": str(modeling_root),
+                            "landmarks": block,
+                            "outcome": outcome,
+                            "variant": args.common_risk_variant,
+                            "cohort": cohort,
+                            "mortality_probability": args.mortality_probability,
+                            "n_bootstrap": args.bootstrap,
+                            "ci": args.ci,
+                            "seed": stable_seed(
+                                args.seed,
+                                "common-risk",
+                                outcome,
+                                cohort,
+                                args.common_risk_variant,
+                                *block,
+                            ),
+                            "pair_mode": args.common_risk_pairs,
+                        }
+                    )
 
         common_rows = run_parallel(
             common_specs,
@@ -1192,6 +1343,7 @@ def main() -> int:
             "outcome",
             "cohort",
             "variant",
+            "common_riskset_max_landmark_hour",
             "earlier_landmark_hour",
             "later_landmark_hour",
             "metric",
@@ -1213,9 +1365,10 @@ def main() -> int:
         "workers": int(args.workers),
         "mortality_probability": args.mortality_probability,
         "reference_variant": args.reference_variant,
-        "common_risk_landmarks": common_landmarks,
+        "common_risk_blocks": common_blocks,
         "common_risk_variant": args.common_risk_variant,
         "common_risk_pairs": args.common_risk_pairs,
+        "canonical_training_tasks": int(len(training_summary)),
         "available_prediction_files": len(available),
         "output_rows": {
             "bootstrap_metric_ci": int(len(individual_df)),
@@ -1223,11 +1376,12 @@ def main() -> int:
             "paired_landmark_common_riskset": int(len(common_df)),
         },
         "notes": [
-            "Bootstrap unit is the patient because 02_train_xgboost.py produces one row per patient.",
+            "Bootstrap unit is the patient because 03_train_xgboost.py produces one row per patient.",
             "Same-landmark representation comparisons use identical resampled patient indices.",
-            "Common-risk landmark comparisons use the intersection of patients present at every requested landmark.",
+            "Each common-risk landmark block uses its own intersection of patients present at every landmark in that block.",
             "For LOS common-risk comparisons, remaining LOS and its prediction are shifted by landmark/24 to total LOS, making the target identical across landmarks.",
-            "No multiplicity-adjusted significance claims are made; CI-excluding-zero flags are estimation-based exploratory comparisons.",
+            "No multiplicity-adjusted significance claims are made; CI-excluding-zero flags are descriptive estimation-based comparisons.",
+            "Only prediction files belonging to PASS tasks in the canonical Stage-03 training summary are eligible; stale files are excluded by design.",
         ],
         "elapsed_seconds": float(time.time() - start),
     }
