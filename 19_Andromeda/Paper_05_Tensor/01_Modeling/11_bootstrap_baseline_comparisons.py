@@ -101,8 +101,10 @@ def load_canonical_summaries(root: Path) -> Tuple[pd.DataFrame, pd.DataFrame]:
         raise FileNotFoundError(training_path)
     if not baseline_path.is_file():
         raise FileNotFoundError(baseline_path)
-    training = pd.read_csv(training_path)
-    baseline = pd.read_csv(baseline_path)
+    # Preserve the literal baseline label "null": pandas otherwise treats
+    # "null" as an NA token and the coverage audit falsely reports it missing.
+    training = pd.read_csv(training_path, keep_default_na=False)
+    baseline = pd.read_csv(baseline_path, keep_default_na=False)
     req_t = {"landmark_hour", "outcome", "variant", "status"}
     req_b = {"landmark_hour", "outcome", "baseline", "status"}
     if req_t - set(training.columns):
