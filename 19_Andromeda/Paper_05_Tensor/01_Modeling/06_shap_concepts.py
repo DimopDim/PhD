@@ -24,7 +24,9 @@ Key properties
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import platform
 from pathlib import Path
 from typing import Dict, List, Sequence, Tuple
 
@@ -44,6 +46,156 @@ from modeling_common import (
 PROJECT_ROOT_DEFAULT = Path(
     "/home/ddimopoulos/Paper_05_Tensor"
 )
+
+
+SHAP_PROTOCOL_VERSION = "P5_SHAP_CONCEPTS_FINAL_PROVENANCE_V1"
+SHAP_IDENTITY_VERSION = "P5_SHAP_CONCEPT_IDENTITY_V1"
+SHAP_STAGE_IDENTITY_VERSION = "P5_SHAP_STAGE_IDENTITY_V1"
+
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def sha256_json_payload(payload) -> str:
+    encoded = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def software_versions(xgb=None):
+    versions = {
+        "python": platform.python_version(),
+        "numpy": np.__version__,
+        "pandas": pd.__version__,
+        "matplotlib": plt.matplotlib.__version__,
+    }
+    if xgb is not None:
+        versions["xgboost"] = xgb.__version__
+    return versions
+
+
+def verify_stage03_binding(
+    *,
+    task_output: Path,
+    task_manifest: dict,
+    matrix_path: Path,
+    feature_path: Path,
+    cohort: str,
+):
+    """
+    Bind the SHAP input exactly to the canonical Stage-03 training artifacts.
+
+    SHAP explains the matrix itself, not a prediction parquet, so the required
+    provenance chain is:
+      Stage-03 training identity -> exact fold models -> exact cohort matrix
+      and feature-name file -> SHAP outputs.
+    """
+    training_identity_path = task_output / "training_identity.json"
+    if not training_identity_path.is_file():
+        raise FileNotFoundError(training_identity_path)
+
+    training_identity = load_json(training_identity_path)
+
+    manifest_training_id = task_manifest.get("training_identity_sha256")
+    identity_training_id = training_identity.get("training_identity_sha256")
+
+    if not manifest_training_id or not identity_training_id:
+        raise RuntimeError(
+            f"Missing Stage-03 training identity under {task_output}."
+        )
+    if manifest_training_id != identity_training_id:
+        raise RuntimeError(
+            f"Stage-03 training identity mismatch under {task_output}."
+        )
+
+    input_hashes = task_manifest.get("input_hashes", {})
+    if cohort == "mimic_test":
+        matrix_key = "test_matrix_file_sha256"
+        feature_key = "test_feature_file_sha256"
+    elif cohort == "eicu_external":
+        matrix_key = "external_matrix_file_sha256"
+        feature_key = "external_feature_file_sha256"
+    else:
+        raise ValueError(f"Unsupported SHAP cohort: {cohort}")
+
+    expected_matrix_sha = input_hashes.get(matrix_key)
+    expected_feature_sha = input_hashes.get(feature_key)
+    if not expected_matrix_sha or not expected_feature_sha:
+        raise RuntimeError(
+            f"Stage-03 input hashes missing for {cohort} under {task_output}."
+        )
+
+    actual_matrix_sha = sha256_file(matrix_path)
+    actual_feature_sha = sha256_file(feature_path)
+
+    if actual_matrix_sha != expected_matrix_sha:
+        raise RuntimeError(
+            f"Matrix SHA256 mismatch for {cohort} under {task_output}: "
+            f"{actual_matrix_sha} != {expected_matrix_sha}"
+        )
+    if actual_feature_sha != expected_feature_sha:
+        raise RuntimeError(
+            f"Feature-file SHA256 mismatch for {cohort} under {task_output}: "
+            f"{actual_feature_sha} != {expected_feature_sha}"
+        )
+
+    model_records = []
+    manifest_models = task_manifest.get("model_files", {})
+    if set(manifest_models.keys()) != {"1", "2", "3", "4", "5"}:
+        raise RuntimeError(
+            f"Stage-03 model provenance is incomplete under {task_output}."
+        )
+
+    for fold in range(1, 6):
+        model_path = task_output / "models" / f"fold_{fold}.json"
+        if not model_path.is_file():
+            raise FileNotFoundError(model_path)
+
+        expected_model_sha = manifest_models[str(fold)].get("sha256")
+        if not expected_model_sha:
+            raise RuntimeError(
+                f"Missing Stage-03 SHA256 for fold {fold} under {task_output}."
+            )
+
+        actual_model_sha = sha256_file(model_path)
+        if actual_model_sha != expected_model_sha:
+            raise RuntimeError(
+                f"Model SHA256 mismatch for fold {fold} under {task_output}: "
+                f"{actual_model_sha} != {expected_model_sha}"
+            )
+
+        model_records.append(
+            {
+                "fold": fold,
+                "file": str(model_path),
+                "sha256": actual_model_sha,
+                "best_rounds": manifest_models[str(fold)].get("best_rounds"),
+            }
+        )
+
+    return {
+        "training_identity_sha256": identity_training_id,
+        "training_identity_file": str(training_identity_path),
+        "training_identity_file_sha256": sha256_file(training_identity_path),
+        "task_manifest_file": str(task_output / "task_manifest.json"),
+        "task_manifest_file_sha256": sha256_file(
+            task_output / "task_manifest.json"
+        ),
+        "matrix_file": str(matrix_path),
+        "matrix_file_sha256": actual_matrix_sha,
+        "feature_file": str(feature_path),
+        "feature_file_sha256": actual_feature_sha,
+        "model_files": model_records,
+    }
 
 
 def get_xgboost():
@@ -554,6 +706,14 @@ def explain_task(
             f"matrix={X.shape[1]}."
         )
 
+    stage03_binding = verify_stage03_binding(
+        task_output=task_output,
+        task_manifest=task_manifest,
+        matrix_path=matrix_path,
+        feature_path=feature_path,
+        cohort=cohort,
+    )
+
     model_paths = sorted(
         (
             task_output
@@ -707,15 +867,20 @@ def explain_task(
         "mean_abs_shap",
         ascending=False,
     )
+    importance_path = figure_dir / "shap_concept_importance.csv"
+    grouped_npz_path = figure_dir / "grouped_shap_values.npz"
+    beeswarm_png = figure_dir / "shap_concept_beeswarm.png"
+    beeswarm_pdf = figure_dir / "shap_concept_beeswarm.pdf"
+    bar_png = figure_dir / "shap_concept_bar.png"
+    bar_pdf = figure_dir / "shap_concept_bar.pdf"
+
     importance_df.to_csv(
-        figure_dir
-        / "shap_concept_importance.csv",
+        importance_path,
         index=False,
     )
 
     np.savez_compressed(
-        figure_dir
-        / "grouped_shap_values.npz",
+        grouped_npz_path,
         grouped_shap=grouped_phi,
         grouped_color_score=(
             grouped_color
@@ -727,7 +892,79 @@ def explain_task(
         ),
     )
 
+    output_paths = [
+        importance_path,
+        grouped_npz_path,
+        beeswarm_png,
+        beeswarm_pdf,
+        bar_png,
+        bar_pdf,
+    ]
+    for output_path in output_paths:
+        if not output_path.is_file():
+            raise FileNotFoundError(
+                f"Expected SHAP output missing: {output_path}"
+            )
+
+    output_files = [
+        {
+            "file": str(output_path),
+            "sha256": sha256_file(output_path),
+            "bytes": int(output_path.stat().st_size),
+        }
+        for output_path in output_paths
+    ]
+
+    shap_protocol = {
+        "protocol_version": SHAP_PROTOCOL_VERSION,
+        "landmark_hour": int(landmark),
+        "outcome": outcome,
+        "variant": variant,
+        "cohort": cohort,
+        "max_rows": int(max_rows),
+        "top_n": int(top_n),
+        "sampling_seed": int(seed),
+        "sampling_rule": (
+            "all eligible rows if n<=max_rows; otherwise simple random "
+            "sample without replacement using numpy default_rng(seed)"
+        ),
+        "shap_algorithm": "XGBoost exact pred_contribs",
+        "approx_contribs": False,
+        "shap_scale": "raw_margin",
+        "fold_models": 5,
+        "fold_aggregation": "arithmetic mean of signed SHAP across fold models",
+        "concept_aggregation": (
+            "sum of signed SHAP over schema-derived constituent features"
+        ),
+        "demographic_groups": ["Age", "Gender", "Race"],
+        "beeswarm_color": (
+            "mean percentile rank of constituent model features within "
+            "the explained cohort; visual context only"
+        ),
+        "max_allowed_additivity_error": 1e-3,
+    }
+    shap_protocol_sha256 = sha256_json_payload(shap_protocol)
+
+    source_path = Path(__file__).resolve()
+    identity_payload = {
+        "identity_version": SHAP_IDENTITY_VERSION,
+        "stage03_binding": stage03_binding,
+        "shap_protocol_sha256": shap_protocol_sha256,
+        "shap_source_sha256": sha256_file(source_path),
+        "modeling_common_source_sha256": task_manifest.get(
+            "modeling_common_source_sha256"
+        ),
+        "software_versions": software_versions(xgb),
+        "eligible_rows": int(n_eligible),
+        "explained_rows": int(len(X)),
+        "feature_count": int(X.shape[1]),
+        "concept_group_count": int(len(concepts)),
+        "output_files": output_files,
+    }
+    shap_identity_sha256 = sha256_json_payload(identity_payload)
+
     shap_manifest = {
+        "status": "PASS",
         "landmark_hour": int(landmark),
         "outcome": outcome,
         "variant": variant,
@@ -737,6 +974,7 @@ def explain_task(
         "sampled": bool(sampled),
         "sampling_seed": int(seed),
         "max_rows": int(max_rows),
+        "top_n": int(top_n),
         "feature_count": int(X.shape[1]),
         "concept_group_count": int(len(concepts)),
         "fold_models": int(len(model_paths)),
@@ -744,21 +982,45 @@ def explain_task(
         "fold_aggregation": "mean_signed_shap",
         "concept_aggregation": "sum_signed_shap_over_constituent_features",
         "max_shap_additivity_error": float(max_additivity_error),
-        "task_manifest": str(task_manifest_path),
-        "hyperparameter_tuning_data_fingerprint_sha256": task_manifest.get(
-            "hyperparameter_tuning_data_fingerprint_sha256"
-        ),
-        "status": "PASS",
+        "stage03_binding": stage03_binding,
+        "training_identity_sha256": stage03_binding[
+            "training_identity_sha256"
+        ],
+        "shap_protocol": shap_protocol,
+        "shap_protocol_sha256": shap_protocol_sha256,
+        "shap_identity_sha256": shap_identity_sha256,
+        "shap_identity_short": shap_identity_sha256[:16],
+        "shap_source_file": str(source_path),
+        "shap_source_sha256": sha256_file(source_path),
+        "software_versions": software_versions(xgb),
+        "output_files": output_files,
     }
-    (figure_dir / "shap_manifest.json").write_text(
+
+    shap_manifest_path = figure_dir / "shap_manifest.json"
+    shap_manifest_path.write_text(
         json.dumps(shap_manifest, indent=2),
         encoding="utf-8",
     )
 
     print(
         f"SHAP PASS | {title} | rows={len(X)}"
-        f"/{n_eligible} | sampled={sampled}"
+        f"/{n_eligible} | sampled={sampled} | "
+        f"identity={shap_identity_sha256[:16]}"
     )
+
+    return {
+        "landmark_hour": int(landmark),
+        "outcome": outcome,
+        "variant": variant,
+        "cohort": cohort,
+        "training_identity_sha256": stage03_binding[
+            "training_identity_sha256"
+        ],
+        "shap_identity_sha256": shap_identity_sha256,
+        "shap_manifest": str(shap_manifest_path),
+        "shap_manifest_sha256": sha256_file(shap_manifest_path),
+        "status": "PASS",
+    }
 
 
 def main() -> int:
@@ -867,6 +1129,8 @@ def main() -> int:
     if invalid_cohorts:
         p.error(f"Unsupported SHAP cohorts: {invalid_cohorts}")
 
+    run_records = []
+
     for landmark in landmarks:
         for outcome in outcomes:
             for variant in variants:
@@ -887,7 +1151,7 @@ def main() -> int:
                     continue
 
                 for cohort in cohorts:
-                    explain_task(
+                    record = explain_task(
                         modeling_root=(
                             modeling_root
                         ),
@@ -899,8 +1163,47 @@ def main() -> int:
                         top_n=args.top_n,
                         seed=args.seed,
                     )
+                    run_records.append(record)
 
-    print("SHAP stage complete.")
+    if not run_records:
+        raise RuntimeError("No SHAP tasks were executed.")
+
+    shap_root = modeling_root / "figures" / "shap"
+    stage_source = Path(__file__).resolve()
+    stage_payload = {
+        "identity_version": SHAP_STAGE_IDENTITY_VERSION,
+        "requested_landmarks": landmarks,
+        "requested_outcomes": outcomes,
+        "requested_variants": variants,
+        "requested_cohorts": cohorts,
+        "max_rows": int(args.max_rows),
+        "top_n": int(args.top_n),
+        "seed": int(args.seed),
+        "shap_source_sha256": sha256_file(stage_source),
+        "software_versions": software_versions(get_xgboost()),
+        "runs": run_records,
+    }
+    stage_identity_sha256 = sha256_json_payload(stage_payload)
+
+    stage_manifest = {
+        "status": "PASS",
+        "executed_runs": int(len(run_records)),
+        "shap_stage_identity_sha256": stage_identity_sha256,
+        "shap_stage_identity_short": stage_identity_sha256[:16],
+        "stage_payload": stage_payload,
+    }
+    stage_manifest_path = shap_root / "06_shap_stage_manifest.json"
+    stage_manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    stage_manifest_path.write_text(
+        json.dumps(stage_manifest, indent=2),
+        encoding="utf-8",
+    )
+
+    print(
+        f"SHAP stage complete. PASS runs={len(run_records)} | "
+        f"stage_identity={stage_identity_sha256}"
+    )
+    print(stage_manifest_path)
     return 0
 
 
