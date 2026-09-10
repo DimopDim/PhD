@@ -34,8 +34,10 @@ Train curves are intentionally not plotted.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
+import platform
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -55,6 +57,38 @@ from sklearn.metrics import (
 PROJECT_ROOT_DEFAULT = Path(
     "/home/ddimopoulos/Paper_05_Tensor"
 )
+
+
+PLOT_PROTOCOL_VERSION = "P5_PLOT_RESULTS_FINAL_PROVENANCE_V1"
+PLOT_IDENTITY_VERSION = "P5_PLOT_RESULTS_IDENTITY_V1"
+
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def sha256_json_payload(payload) -> str:
+    encoded = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def software_versions():
+    return {
+        "python": platform.python_version(),
+        "numpy": np.__version__,
+        "pandas": pd.__version__,
+        "matplotlib": plt.matplotlib.__version__,
+    }
+
 
 
 def save_figure(
@@ -625,22 +659,53 @@ def main() -> int:
     collection_manifest_path = (
         modeling_root / "reports" / "metrics_collection_manifest.json"
     )
-    if collection_manifest_path.is_file():
-        collection_manifest = json.loads(
-            collection_manifest_path.read_text(encoding="utf-8")
+    if not collection_manifest_path.is_file():
+        raise FileNotFoundError(
+            f"{collection_manifest_path}. Run final 04_collect_metrics.py first."
         )
-        if collection_manifest.get("status") != "PASS":
-            raise RuntimeError(
-                "Metric collection manifest is not PASS."
-            )
-        expected_rows = int(
-            collection_manifest.get("aggregate_metric_rows", -1)
+
+    collection_manifest = json.loads(
+        collection_manifest_path.read_text(encoding="utf-8")
+    )
+
+    if collection_manifest.get("status") != "PASS":
+        raise RuntimeError(
+            "Metric collection manifest is not PASS."
         )
-        if expected_rows != len(metrics):
-            raise RuntimeError(
-                f"Metric row-count mismatch: manifest={expected_rows}, "
-                f"all_metrics.csv={len(metrics)}."
-            )
+
+    expected_rows = int(
+        collection_manifest.get("aggregate_metric_rows", -1)
+    )
+    if expected_rows != len(metrics):
+        raise RuntimeError(
+            f"Metric row-count mismatch: manifest={expected_rows}, "
+            f"all_metrics.csv={len(metrics)}."
+        )
+
+    collection_identity = collection_manifest.get(
+        "metrics_collection_identity_sha256"
+    )
+    if not collection_identity:
+        raise RuntimeError(
+            "Stage-04 metrics collection identity is missing."
+        )
+
+    recorded_all_metrics = (
+        collection_manifest
+        .get("output_files", {})
+        .get("all_metrics", {})
+        .get("sha256")
+    )
+    if not recorded_all_metrics:
+        raise RuntimeError(
+            "Stage-04 manifest does not contain all_metrics.csv SHA256."
+        )
+
+    actual_all_metrics_sha256 = sha256_file(metrics_path)
+    if actual_all_metrics_sha256 != recorded_all_metrics:
+        raise RuntimeError(
+            "all_metrics.csv SHA256 does not match the Stage-04 manifest."
+        )
 
     figure_root = (
         modeling_root
@@ -700,7 +765,12 @@ def main() -> int:
             ylabel=ylabel,
             output_path=output_path,
         )
-        generated_summary.append(str(output_path))
+        generated_summary.extend(
+            [
+                str(output_path),
+                str(output_path.with_suffix(".pdf")),
+            ]
+        )
 
     if args.task_plots:
         task_metrics = metrics.loc[
@@ -758,15 +828,96 @@ def main() -> int:
                     output_dir=output,
                 )
 
-    plot_manifest = {
-        "source_metrics": str(metrics_path),
-        "metric_rows": int(len(metrics)),
-        "summary_figures": generated_summary,
-        "task_plots_requested": bool(args.task_plots),
-        "status": "PASS",
-    }
     figure_root.mkdir(parents=True, exist_ok=True)
-    (figure_root / "05_plot_manifest.json").write_text(
+
+    generated_files = []
+    for f in sorted(set(generated_summary)):
+        pth = Path(f)
+        if not pth.is_file():
+            raise FileNotFoundError(
+                f"Expected generated figure is missing: {pth}"
+            )
+        generated_files.append(
+            {
+                "file": str(pth),
+                "sha256": sha256_file(pth),
+                "bytes": int(pth.stat().st_size),
+            }
+        )
+
+    # If task plots were requested, bind every generated task PNG/PDF as well.
+    if args.task_plots:
+        for pth in sorted(figure_root.glob("landmark_*h/**/*")):
+            if (
+                pth.is_file()
+                and pth.suffix.lower() in {".png", ".pdf"}
+                and str(pth) not in {x["file"] for x in generated_files}
+            ):
+                generated_files.append(
+                    {
+                        "file": str(pth),
+                        "sha256": sha256_file(pth),
+                        "bytes": int(pth.stat().st_size),
+                    }
+                )
+
+    plot_protocol = {
+        "protocol_version": PLOT_PROTOCOL_VERSION,
+        "source_stage": "Stage 04 final metrics collection",
+        "metric_recomputation": False,
+        "summary_cohorts": ["mimic_test", "eicu_external"],
+        "summary_metrics": [
+            "los:mae",
+            "los:rmse",
+            "los:r2",
+            "mortality:roc_auc_calibrated",
+            "mortality:average_precision_calibrated",
+            "mortality:brier_calibrated",
+        ],
+        "task_plots_requested": bool(args.task_plots),
+    }
+    plot_protocol_sha256 = sha256_json_payload(plot_protocol)
+
+    source_file = Path(__file__).resolve()
+
+    identity_payload = {
+        "identity_version": PLOT_IDENTITY_VERSION,
+        "metrics_collection_identity_sha256": collection_identity,
+        "metrics_collection_manifest_sha256": sha256_file(
+            collection_manifest_path
+        ),
+        "all_metrics_sha256": actual_all_metrics_sha256,
+        "plot_protocol_sha256": plot_protocol_sha256,
+        "plotter_source_sha256": sha256_file(source_file),
+        "software_versions": software_versions(),
+        "generated_files": generated_files,
+    }
+
+    plot_identity_sha256 = sha256_json_payload(identity_payload)
+
+    plot_manifest = {
+        "status": "PASS",
+        "source_metrics": str(metrics_path),
+        "source_metrics_sha256": actual_all_metrics_sha256,
+        "metric_rows": int(len(metrics)),
+        "metrics_collection_manifest": str(collection_manifest_path),
+        "metrics_collection_manifest_sha256": sha256_file(
+            collection_manifest_path
+        ),
+        "metrics_collection_identity_sha256": collection_identity,
+        "plot_protocol": plot_protocol,
+        "plot_protocol_sha256": plot_protocol_sha256,
+        "plot_identity_sha256": plot_identity_sha256,
+        "plot_identity_short": plot_identity_sha256[:16],
+        "plotter_source_file": str(source_file),
+        "plotter_source_sha256": sha256_file(source_file),
+        "software_versions": software_versions(),
+        "generated_files": generated_files,
+        "task_plots_requested": bool(args.task_plots),
+    }
+
+    manifest_path = figure_root / "05_plot_manifest.json"
+    manifest_path.write_text(
         json.dumps(plot_manifest, indent=2),
         encoding="utf-8",
     )
@@ -774,6 +925,16 @@ def main() -> int:
     print(
         f"PASS: figures written under {figure_root}"
     )
+    print(
+        f"Stage-04 metrics identity: {collection_identity}"
+    )
+    print(
+        f"Stage-05 plot identity: {plot_identity_sha256}"
+    )
+    print(
+        f"Generated figure files bound: {len(generated_files)}"
+    )
+    print(manifest_path)
     return 0
 
 
