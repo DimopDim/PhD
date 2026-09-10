@@ -35,8 +35,11 @@ Default outcomes:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import logging
+import platform
+import shutil
 import math
 import os
 import sys
@@ -50,6 +53,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
+import sklearn
 
 from sklearn.calibration import calibration_curve
 from sklearn.linear_model import LogisticRegression
@@ -108,6 +112,70 @@ DEFAULT_INNER_ES_FRACTION = 0.10
 DEFAULT_TUNING_LANDMARK = 24
 
 
+def sha256_json_payload(payload: dict) -> str:
+    encoded = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def sha256_file(path: Path, chunk_size: int = 8 * 1024 * 1024) -> str:
+    path = Path(path)
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        while True:
+            chunk = f.read(chunk_size)
+            if not chunk:
+                break
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def sha256_numpy_array(values: np.ndarray) -> str:
+    arr = np.asarray(values)
+    contiguous = np.ascontiguousarray(arr)
+    h = hashlib.sha256()
+    header = {
+        "dtype": contiguous.dtype.str,
+        "shape": [int(x) for x in contiguous.shape],
+        "order": "C",
+    }
+    h.update(
+        json.dumps(
+            header,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    )
+    h.update(b"\n")
+    h.update(memoryview(contiguous).cast("B"))
+    return h.hexdigest()
+
+
+def sha256_string_sequence(values) -> str:
+    payload = [str(x) for x in values]
+    return hashlib.sha256(
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def software_versions(xgb) -> dict:
+    return {
+        "python": platform.python_version(),
+        "numpy": np.__version__,
+        "pandas": pd.__version__,
+        "scikit_learn": sklearn.__version__,
+        "xgboost": getattr(xgb, "__version__", "unknown"),
+    }
+
+
 def hyperparameter_file(
     modeling_root: Path,
     tuning_landmark: int,
@@ -131,9 +199,9 @@ def load_task_params(
     outcome: str,
     variant: str,
     params_source: str,
-) -> Tuple[Dict, Optional[str], Optional[str]]:
+) -> Tuple[Dict, Optional[str], dict]:
     if params_source == "default":
-        return dict(DEFAULT_PARAMS), None, None
+        return dict(DEFAULT_PARAMS), None, {}
 
     path = hyperparameter_file(
         modeling_root,
@@ -155,17 +223,56 @@ def load_task_params(
         raise RuntimeError(f"Frozen parameter outcome mismatch in {path}.")
     if str(payload.get("variant")) != str(variant):
         raise RuntimeError(f"Frozen parameter variant mismatch in {path}.")
-    fingerprint = payload.get("tuning_data_fingerprint_sha256")
-    if not fingerprint:
-        raise RuntimeError(
-            f"Frozen parameters lack revised tuning-data fingerprint: {path}. "
-            "Rerun 02_optuna_tune_xgboost.py."
-        )
-    params = dict(
-        payload["xgb_params"]
-    )
 
-    # Runtime-only parameters are set later per fold.
+    required = [
+        "tuning_data_fingerprint_sha256",
+        "patient_ids_sha256",
+        "stay_ids_sha256",
+        "feature_names_sha256",
+        "x_values_sha256",
+        "y_values_sha256",
+        "matrix_file_sha256",
+        "feature_names_file_sha256",
+        "outer_fold_assignments_sha256",
+        "tuning_config_sha256",
+        "study_identity_sha256",
+        "tuner_source_sha256",
+        "modeling_common_source_sha256",
+    ]
+    missing = [k for k in required if not payload.get(k)]
+    if missing:
+        raise RuntimeError(
+            f"Frozen parameters lack final provenance fields {missing}: {path}. "
+            "Use the final provenance-aware 02_optuna_tune_xgboost.py outputs."
+        )
+
+    if int(payload.get("failed_trials", 0)) != 0:
+        raise RuntimeError(
+            f"Optuna study reports failed trials in {path}: "
+            f"{payload.get('failed_trials')}"
+        )
+    target_trials = int(payload.get("target_total_trials", -1))
+    total_trials = int(payload.get("total_trials_in_study", -1))
+    if target_trials <= 0 or total_trials < target_trials:
+        raise RuntimeError(
+            f"Incomplete Optuna study in {path}: "
+            f"total={total_trials}, target={target_trials}."
+        )
+
+    outer_fold_path = Path(
+        payload.get("outer_fold_assignments_file", "")
+    )
+    if not outer_fold_path.is_file():
+        raise FileNotFoundError(
+            f"Missing Optuna outer-fold assignments: {outer_fold_path}"
+        )
+    actual_outer_hash = sha256_file(outer_fold_path)
+    if actual_outer_hash != payload["outer_fold_assignments_sha256"]:
+        raise RuntimeError(
+            f"Optuna outer-fold assignment hash mismatch: {outer_fold_path}"
+        )
+
+    params = dict(payload["xgb_params"])
     for key in [
         "objective",
         "eval_metric",
@@ -173,12 +280,34 @@ def load_task_params(
         "seed",
         "verbosity",
     ]:
-        params.pop(
-            key,
-            None,
-        )
+        params.pop(key, None)
 
-    return params, str(path), str(fingerprint)
+    provenance = {
+        "hyperparameter_file_sha256": sha256_file(path),
+        "tuning_data_fingerprint_sha256": payload["tuning_data_fingerprint_sha256"],
+        "patient_ids_sha256": payload["patient_ids_sha256"],
+        "stay_ids_sha256": payload["stay_ids_sha256"],
+        "feature_names_sha256": payload["feature_names_sha256"],
+        "x_values_sha256": payload["x_values_sha256"],
+        "y_values_sha256": payload["y_values_sha256"],
+        "matrix_file_sha256": payload["matrix_file_sha256"],
+        "feature_names_file_sha256": payload["feature_names_file_sha256"],
+        "outer_fold_assignments_file": str(outer_fold_path),
+        "outer_fold_assignments_sha256": payload["outer_fold_assignments_sha256"],
+        "tuning_config_sha256": payload["tuning_config_sha256"],
+        "study_identity_sha256": payload["study_identity_sha256"],
+        "study_identity_short": payload.get("study_identity_short"),
+        "study_identity_version": payload.get("study_identity_version"),
+        "tuner_source_sha256": payload["tuner_source_sha256"],
+        "modeling_common_source_sha256": payload["modeling_common_source_sha256"],
+        "target_total_trials": target_trials,
+        "total_trials_in_study": total_trials,
+        "complete_trials": int(payload.get("complete_trials", 0)),
+        "pruned_trials": int(payload.get("pruned_trials", 0)),
+        "failed_trials": int(payload.get("failed_trials", 0)),
+        "software_versions": payload.get("software_versions", {}),
+    }
+    return params, str(path), provenance
 
 
 def get_xgboost():
@@ -880,6 +1009,77 @@ def run_task(task: dict) -> dict:
         train_mask
     ].astype(str)
 
+    # Bind this training task to the exact matrix/target bytes that were
+    # loaded. At the 24 h Optuna anchor, these hashes must match the final
+    # tuning study before frozen hyperparameters are accepted.
+    train_matrix_path, train_feature_path = matrix_cache_paths(
+        modeling_root, landmark, variant, "mimic", "train"
+    )
+    test_matrix_path, test_feature_path = matrix_cache_paths(
+        modeling_root, landmark, variant, "mimic", "test"
+    )
+    external_matrix_path, external_feature_path = matrix_cache_paths(
+        modeling_root, landmark, variant, "eicu", "external"
+    )
+
+    input_hashes = {
+        "train_matrix_file_sha256": sha256_file(train_matrix_path),
+        "test_matrix_file_sha256": sha256_file(test_matrix_path),
+        "external_matrix_file_sha256": sha256_file(external_matrix_path),
+        "train_feature_file_sha256": sha256_file(train_feature_path),
+        "test_feature_file_sha256": sha256_file(test_feature_path),
+        "external_feature_file_sha256": sha256_file(external_feature_path),
+        "feature_names_sha256": sha256_string_sequence(train.feature_names),
+        "x_train_values_sha256": sha256_numpy_array(X_train),
+        "y_train_values_sha256": sha256_numpy_array(y_train),
+        "x_test_values_sha256": sha256_numpy_array(X_test),
+        "y_test_values_sha256": sha256_numpy_array(y_test),
+        "x_external_values_sha256": sha256_numpy_array(X_external),
+        "y_external_values_sha256": sha256_numpy_array(y_external),
+        "train_patient_ids_sha256": sha256_string_sequence(
+            train.patient_id[train_mask]
+        ),
+        "train_stay_ids_sha256": sha256_string_sequence(
+            train.stay_id[train_mask]
+        ),
+        "test_patient_ids_sha256": sha256_string_sequence(
+            test.patient_id[test_mask]
+        ),
+        "test_stay_ids_sha256": sha256_string_sequence(
+            test.stay_id[test_mask]
+        ),
+        "external_patient_ids_sha256": sha256_string_sequence(
+            external.patient_id[external_mask]
+        ),
+        "external_stay_ids_sha256": sha256_string_sequence(
+            external.stay_id[external_mask]
+        ),
+    }
+
+    hp_provenance = task.get("hyperparameter_provenance", {})
+    anchor_tuning_input_match = None
+    if task["params_source"] == "optuna" and landmark == int(task["tuning_landmark"]):
+        anchor_checks = {
+            "x_values_sha256": input_hashes["x_train_values_sha256"],
+            "y_values_sha256": input_hashes["y_train_values_sha256"],
+            "patient_ids_sha256": input_hashes["train_patient_ids_sha256"],
+            "stay_ids_sha256": input_hashes["train_stay_ids_sha256"],
+            "feature_names_sha256": input_hashes["feature_names_sha256"],
+            "matrix_file_sha256": input_hashes["train_matrix_file_sha256"],
+            "feature_names_file_sha256": input_hashes["train_feature_file_sha256"],
+        }
+        mismatches = {
+            key: {"training": value, "tuning": hp_provenance.get(key)}
+            for key, value in anchor_checks.items()
+            if value != hp_provenance.get(key)
+        }
+        if mismatches:
+            raise RuntimeError(
+                "Final Optuna provenance does not match the actual 24 h "
+                f"training inputs for {outcome}/{variant}: {mismatches}"
+            )
+        anchor_tuning_input_match = True
+
     assert_unique_patient_rows(
         groups_train,
         label=(
@@ -924,6 +1124,32 @@ def run_task(task: dict) -> dict:
         seed,
     )
 
+    outer_fold_assignment = np.full(len(groups_train), -1, dtype=np.int16)
+    for fold, (_, valid_idx) in enumerate(outer_splits, start=1):
+        if np.any(outer_fold_assignment[valid_idx] != -1):
+            raise RuntimeError("Duplicate outer validation-fold assignment.")
+        outer_fold_assignment[valid_idx] = fold
+    if np.any(outer_fold_assignment == -1):
+        raise RuntimeError("Incomplete outer validation-fold assignment.")
+
+    anchor_tuning_fold_match = None
+    if task["params_source"] == "optuna" and landmark == int(task["tuning_landmark"]):
+        tuning_fold_path = Path(hp_provenance["outer_fold_assignments_file"])
+        tuning_folds = pd.read_csv(tuning_fold_path)
+        expected = pd.DataFrame({
+            "patient_id": groups_train.astype(str),
+            "fold": outer_fold_assignment.astype(int),
+        })
+        observed = tuning_folds[["patient_id", "fold"]].copy()
+        observed["patient_id"] = observed["patient_id"].astype(str)
+        observed["fold"] = observed["fold"].astype(int)
+        if len(observed) != len(expected) or not observed.equals(expected):
+            raise RuntimeError(
+                f"Training outer folds do not exactly match final Optuna folds at "
+                f"{landmark}h/{outcome}/{variant}."
+            )
+        anchor_tuning_fold_match = True
+
     oof = np.full(
         len(y_train),
         np.nan,
@@ -939,13 +1165,80 @@ def run_task(task: dict) -> dict:
         outcome,
         variant,
     )
-    model_dir = (
-        task_output
-        / "models"
-    )
-    task_output.mkdir(
-        parents=True,
-        exist_ok=True,
+
+    # A canonical task run must not silently coexist with stale artifacts from
+    # an earlier training execution. Each task has its own output directory,
+    # so removing it here is safe under ProcessPoolExecutor.
+    if task_output.exists():
+        shutil.rmtree(task_output)
+    model_dir = task_output / "models"
+    task_output.mkdir(parents=True, exist_ok=True)
+
+    outer_fold_path = task_output / "outer_fold_assignments.csv"
+    pd.DataFrame({
+        "patient_id": groups_train,
+        "stay_id": train.stay_id[train_mask],
+        "fold": outer_fold_assignment,
+        "landmark_hour": landmark,
+        "outcome": outcome,
+        "variant": variant,
+    }).to_csv(outer_fold_path, index=False)
+    outer_fold_sha256 = sha256_file(outer_fold_path)
+
+    source_path = Path(__file__).resolve()
+    modeling_common_path = source_path.with_name("modeling_common.py")
+    source_hashes = {
+        "trainer_source_file": str(source_path),
+        "trainer_source_sha256": sha256_file(source_path),
+        "modeling_common_source_file": str(modeling_common_path),
+        "modeling_common_source_sha256": sha256_file(modeling_common_path),
+    }
+    versions = software_versions(xgb)
+
+    training_protocol = {
+        "protocol_version": "P5_XGB_TRAINING_FINAL_PROVENANCE_V1",
+        "landmark_hour": landmark,
+        "outcome": outcome,
+        "variant": variant,
+        "seed": seed,
+        "outer_folds": 5,
+        "inner_early_stopping_fraction": float(task["inner_es_fraction"]),
+        "max_boost_rounds": int(task["num_boost_round"]),
+        "early_stopping_rounds": int(task["early_stopping_rounds"]),
+        "xgb_threads": int(task["xgb_threads"]),
+        "params_source": task["params_source"],
+        "frozen_xgb_params": task["params"],
+        "inner_split_seed_rule": "seed + 1000 + fold",
+        "fold_model_seed_rule": "seed + fold",
+        "test_external_prediction_rule": "arithmetic mean of five outer-fold model predictions",
+        "mortality_calibration": "Platt sigmoid fit on MIMIC development OOF raw probabilities only",
+        "mortality_threshold": "maximum Youden J on calibrated MIMIC development OOF probabilities",
+    }
+    training_protocol_sha256 = sha256_json_payload(training_protocol)
+
+    identity_payload = {
+        "identity_version": "P5_XGB_TRAINING_IDENTITY_V1",
+        "input_hashes": input_hashes,
+        "outer_fold_assignments_sha256": outer_fold_sha256,
+        "hyperparameter_file_sha256": hp_provenance.get("hyperparameter_file_sha256"),
+        "optuna_study_identity_sha256": hp_provenance.get("study_identity_sha256"),
+        "training_protocol_sha256": training_protocol_sha256,
+        "trainer_source_sha256": source_hashes["trainer_source_sha256"],
+        "modeling_common_source_sha256": source_hashes["modeling_common_source_sha256"],
+        "software_versions": versions,
+    }
+    training_identity_sha256 = sha256_json_payload(identity_payload)
+    training_identity_record = {
+        "training_identity_sha256": training_identity_sha256,
+        "training_identity_short": training_identity_sha256[:16],
+        "identity_payload": identity_payload,
+        "training_protocol": training_protocol,
+        "hyperparameter_provenance": hp_provenance,
+        "anchor_tuning_input_match": anchor_tuning_input_match,
+        "anchor_tuning_fold_match": anchor_tuning_fold_match,
+    }
+    (task_output / "training_identity.json").write_text(
+        json.dumps(training_identity_record, indent=2), encoding="utf-8"
     )
 
     start = time.time()
@@ -1516,14 +1809,24 @@ def run_task(task: dict) -> dict:
         index=False,
     )
 
-    for cohort, frame in (
-        prediction_tables.items()
-    ):
-        frame.to_parquet(
-            task_output
-            / f"predictions_{cohort}.parquet",
-            index=False,
-        )
+    prediction_file_hashes = {}
+    for cohort, frame in prediction_tables.items():
+        prediction_path = task_output / f"predictions_{cohort}.parquet"
+        frame.to_parquet(prediction_path, index=False)
+        prediction_file_hashes[cohort] = {
+            "file": str(prediction_path),
+            "sha256": sha256_file(prediction_path),
+            "rows": int(len(frame)),
+        }
+
+    model_file_hashes = {}
+    for fold_row in fold_rows:
+        mp = Path(fold_row["model_path"])
+        model_file_hashes[str(fold_row["fold"])] = {
+            "file": str(mp),
+            "sha256": sha256_file(mp),
+            "best_rounds": int(fold_row["best_rounds"]),
+        }
 
     (
         task_output
@@ -1585,9 +1888,23 @@ def run_task(task: dict) -> dict:
         "hyperparameter_file": task.get(
             "hyperparameter_file"
         ),
-        "hyperparameter_tuning_data_fingerprint_sha256": task.get(
-            "hyperparameter_tuning_data_fingerprint_sha256"
+        "hyperparameter_provenance": hp_provenance,
+        "optuna_study_identity_sha256": hp_provenance.get(
+            "study_identity_sha256"
         ),
+        "anchor_tuning_input_match": anchor_tuning_input_match,
+        "anchor_tuning_fold_match": anchor_tuning_fold_match,
+        "training_identity_sha256": training_identity_sha256,
+        "training_identity_file": str(task_output / "training_identity.json"),
+        "input_hashes": input_hashes,
+        "outer_fold_assignments_file": str(outer_fold_path),
+        "outer_fold_assignments_sha256": outer_fold_sha256,
+        "training_protocol_sha256": training_protocol_sha256,
+        "training_protocol": training_protocol,
+        **source_hashes,
+        "software_versions": versions,
+        "model_files": model_file_hashes,
+        "prediction_files": prediction_file_hashes,
         "num_boost_round_max": int(
             task[
                 "num_boost_round"
@@ -1634,6 +1951,12 @@ def run_task(task: dict) -> dict:
         "output_dir": str(
             task_output
         ),
+        "training_identity_sha256": training_identity_sha256,
+        "optuna_study_identity_sha256": hp_provenance.get(
+            "study_identity_sha256"
+        ),
+        "anchor_tuning_input_match": anchor_tuning_input_match,
+        "anchor_tuning_fold_match": anchor_tuning_fold_match,
     }
 
 
@@ -1807,7 +2130,7 @@ def main() -> int:
                 continue
 
             for outcome in outcomes:
-                task_params, params_file, params_fingerprint = (
+                task_params, params_file, params_provenance = (
                     load_task_params(
                         modeling_root,
                         tuning_landmark=(
@@ -1852,9 +2175,7 @@ def main() -> int:
                         "hyperparameter_file": (
                             params_file
                         ),
-                        "hyperparameter_tuning_data_fingerprint_sha256": (
-                            params_fingerprint
-                        ),
+                        "hyperparameter_provenance": params_provenance,
                     }
                 )
 
