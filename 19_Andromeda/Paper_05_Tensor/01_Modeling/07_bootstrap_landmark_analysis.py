@@ -55,6 +55,7 @@ import hashlib
 import json
 import math
 import os
+import platform
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -97,6 +98,153 @@ LOWER_IS_BETTER = {
 NEUTRAL_DIRECTION = {
     "bias",
 }
+
+
+BOOTSTRAP_PROTOCOL_VERSION = "P5_BOOTSTRAP_FINAL_PROVENANCE_V1"
+BOOTSTRAP_IDENTITY_VERSION = "P5_BOOTSTRAP_RUN_IDENTITY_V1"
+
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def sha256_json_payload(payload: Mapping[str, object]) -> str:
+    encoded = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def software_versions() -> Dict[str, str]:
+    import sklearn
+
+    return {
+        "python": platform.python_version(),
+        "numpy": np.__version__,
+        "pandas": pd.__version__,
+        "scikit_learn": sklearn.__version__,
+    }
+
+
+def task_paths(
+    modeling_root: Path,
+    landmark: int,
+    outcome: str,
+    variant: str,
+) -> Tuple[Path, Path, Path]:
+    task_output = (
+        modeling_root
+        / "results"
+        / f"landmark_{landmark:03d}h"
+        / outcome
+        / variant
+    )
+    return (
+        task_output,
+        task_output / "task_manifest.json",
+        task_output / "training_identity.json",
+    )
+
+
+def verify_prediction_provenance(
+    *,
+    modeling_root: Path,
+    landmark: int,
+    outcome: str,
+    variant: str,
+    cohort: str,
+    prediction_file: Path,
+) -> Dict[str, object]:
+    task_output, task_manifest_path, training_identity_path = task_paths(
+        modeling_root,
+        landmark,
+        outcome,
+        variant,
+    )
+
+    if not task_manifest_path.is_file():
+        raise FileNotFoundError(task_manifest_path)
+    if not training_identity_path.is_file():
+        raise FileNotFoundError(training_identity_path)
+    if not prediction_file.is_file():
+        raise FileNotFoundError(prediction_file)
+
+    task_manifest = json.loads(
+        task_manifest_path.read_text(encoding="utf-8")
+    )
+    training_identity = json.loads(
+        training_identity_path.read_text(encoding="utf-8")
+    )
+
+    for key, expected in (
+        ("landmark_hour", landmark),
+        ("outcome", outcome),
+        ("variant", variant),
+    ):
+        if task_manifest.get(key) != expected:
+            raise ValueError(
+                f"{task_manifest_path}: {key}={task_manifest.get(key)!r}, "
+                f"expected={expected!r}"
+            )
+
+    manifest_training_id = task_manifest.get("training_identity_sha256")
+    identity_training_id = training_identity.get("training_identity_sha256")
+    if not manifest_training_id or not identity_training_id:
+        raise ValueError(
+            f"Missing Stage-03 training identity for "
+            f"{landmark}h/{outcome}/{variant}."
+        )
+    if manifest_training_id != identity_training_id:
+        raise ValueError(
+            f"Stage-03 training identity mismatch for "
+            f"{landmark}h/{outcome}/{variant}."
+        )
+
+    prediction_files = task_manifest.get("prediction_files", {})
+    expected_record = prediction_files.get(cohort)
+    if not expected_record:
+        raise ValueError(
+            f"{task_manifest_path}: missing prediction provenance for {cohort}."
+        )
+
+    expected_sha = expected_record.get("sha256")
+    if not expected_sha:
+        raise ValueError(
+            f"{task_manifest_path}: missing SHA256 for {cohort} prediction."
+        )
+
+    actual_sha = sha256_file(prediction_file)
+    if actual_sha != expected_sha:
+        raise ValueError(
+            f"Prediction SHA256 mismatch for "
+            f"{landmark}h/{outcome}/{variant}/{cohort}: "
+            f"{actual_sha} != {expected_sha}"
+        )
+
+    expected_rows = expected_record.get("rows")
+    return {
+        "landmark_hour": int(landmark),
+        "outcome": outcome,
+        "variant": variant,
+        "cohort": cohort,
+        "training_identity_sha256": identity_training_id,
+        "task_manifest": str(task_manifest_path),
+        "task_manifest_sha256": sha256_file(task_manifest_path),
+        "training_identity_file": str(training_identity_path),
+        "training_identity_file_sha256": sha256_file(training_identity_path),
+        "prediction_file": str(prediction_file),
+        "prediction_file_sha256": actual_sha,
+        "prediction_rows_manifest": (
+            int(expected_rows) if expected_rows is not None else None
+        ),
+    }
 
 
 def parse_csv_strings(text: str) -> List[str]:
@@ -493,9 +641,25 @@ def individual_worker(spec: Mapping[str, object]) -> List[Dict[str, object]]:
     path = prediction_path(
         modeling_root, landmark, outcome, variant, cohort
     )
+    provenance = verify_prediction_provenance(
+        modeling_root=modeling_root,
+        landmark=landmark,
+        outcome=outcome,
+        variant=variant,
+        cohort=cohort,
+        prediction_file=path,
+    )
     df = load_prediction_frame(
         path, outcome, mortality_probability
     )
+    if (
+        provenance["prediction_rows_manifest"] is not None
+        and int(provenance["prediction_rows_manifest"]) != len(df)
+    ):
+        raise ValueError(
+            f"Prediction row-count mismatch for {path}: "
+            f"manifest={provenance['prediction_rows_manifest']}, actual={len(df)}"
+        )
     y = df["y_true"].to_numpy(
         dtype=int if outcome == "mortality" else float
     )
@@ -524,6 +688,12 @@ def individual_worker(spec: Mapping[str, object]) -> List[Dict[str, object]]:
                     else ""
                 ),
                 "prediction_file": str(path),
+                "prediction_file_sha256": provenance[
+                    "prediction_file_sha256"
+                ],
+                "training_identity_sha256": provenance[
+                    "training_identity_sha256"
+                ],
             }
         )
     return rows
@@ -553,12 +723,41 @@ def representation_worker(spec: Mapping[str, object]) -> List[Dict[str, object]]
         cohort,
     )
 
+    ref_provenance = verify_prediction_provenance(
+        modeling_root=modeling_root,
+        landmark=landmark,
+        outcome=outcome,
+        variant=reference_variant,
+        cohort=cohort,
+        prediction_file=ref_path,
+    )
+    cmp_provenance = verify_prediction_provenance(
+        modeling_root=modeling_root,
+        landmark=landmark,
+        outcome=outcome,
+        variant=comparator_variant,
+        cohort=cohort,
+        prediction_file=cmp_path,
+    )
+
     ref = load_prediction_frame(
         ref_path, outcome, mortality_probability
     )
     cmp = load_prediction_frame(
         cmp_path, outcome, mortality_probability
     )
+    for prov, frame, path in (
+        (ref_provenance, ref, ref_path),
+        (cmp_provenance, cmp, cmp_path),
+    ):
+        if (
+            prov["prediction_rows_manifest"] is not None
+            and int(prov["prediction_rows_manifest"]) != len(frame)
+        ):
+            raise ValueError(
+                f"Prediction row-count mismatch for {path}: "
+                f"manifest={prov['prediction_rows_manifest']}, actual={len(frame)}"
+            )
     merged = align_two_frames(
         ref,
         cmp,
@@ -599,7 +798,19 @@ def representation_worker(spec: Mapping[str, object]) -> List[Dict[str, object]]
                     else ""
                 ),
                 "reference_prediction_file": str(ref_path),
+                "reference_prediction_file_sha256": ref_provenance[
+                    "prediction_file_sha256"
+                ],
+                "reference_training_identity_sha256": ref_provenance[
+                    "training_identity_sha256"
+                ],
                 "comparator_prediction_file": str(cmp_path),
+                "comparator_prediction_file_sha256": cmp_provenance[
+                    "prediction_file_sha256"
+                ],
+                "comparator_training_identity_sha256": cmp_provenance[
+                    "training_identity_sha256"
+                ],
             }
         )
     return rows
@@ -617,6 +828,8 @@ def build_common_risk_wide(
     key = ["patient_id", "stay_id"]
     merged: Optional[pd.DataFrame] = None
 
+    provenance_records: List[Dict[str, object]] = []
+
     for landmark in landmarks:
         path = prediction_path(
             modeling_root,
@@ -625,9 +838,26 @@ def build_common_risk_wide(
             variant,
             cohort,
         )
+        provenance = verify_prediction_provenance(
+            modeling_root=modeling_root,
+            landmark=landmark,
+            outcome=outcome,
+            variant=variant,
+            cohort=cohort,
+            prediction_file=path,
+        )
         frame = load_prediction_frame(
             path, outcome, mortality_probability
         )
+        if (
+            provenance["prediction_rows_manifest"] is not None
+            and int(provenance["prediction_rows_manifest"]) != len(frame)
+        ):
+            raise ValueError(
+                f"Prediction row-count mismatch for {path}: "
+                f"manifest={provenance['prediction_rows_manifest']}, actual={len(frame)}"
+            )
+        provenance_records.append(provenance)
 
         if outcome == "los":
             offset_days = float(landmark) / 24.0
@@ -683,10 +913,12 @@ def build_common_risk_wide(
                 f"is not > max landmark ({max_landmark} h)."
             )
 
-    return merged.sort_values(
+    merged = merged.sort_values(
         key,
         kind="stable",
     ).reset_index(drop=True)
+    merged.attrs["prediction_provenance"] = provenance_records
+    return merged
 
 
 def common_risk_worker(spec: Mapping[str, object]) -> List[Dict[str, object]]:
@@ -709,6 +941,10 @@ def common_risk_worker(spec: Mapping[str, object]) -> List[Dict[str, object]]:
     y = wide[f"y_{landmarks[0]}"].to_numpy(
         dtype=int if outcome == "mortality" else float
     )
+    provenance_records = wide.attrs.get("prediction_provenance", [])
+    provenance_by_landmark = {
+        int(r["landmark_hour"]): r for r in provenance_records
+    }
 
     if str(spec["pair_mode"]) == "adjacent":
         pairs = list(zip(landmarks[:-1], landmarks[1:]))
@@ -773,6 +1009,24 @@ def common_risk_worker(spec: Mapping[str, object]) -> List[Dict[str, object]]:
                         if outcome == "mortality"
                         else ""
                     ),
+                    "earlier_prediction_file": provenance_by_landmark[
+                        int(earlier)
+                    ]["prediction_file"],
+                    "earlier_prediction_file_sha256": provenance_by_landmark[
+                        int(earlier)
+                    ]["prediction_file_sha256"],
+                    "earlier_training_identity_sha256": provenance_by_landmark[
+                        int(earlier)
+                    ]["training_identity_sha256"],
+                    "later_prediction_file": provenance_by_landmark[
+                        int(later)
+                    ]["prediction_file"],
+                    "later_prediction_file_sha256": provenance_by_landmark[
+                        int(later)
+                    ]["prediction_file_sha256"],
+                    "later_training_identity_sha256": provenance_by_landmark[
+                        int(later)
+                    ]["training_identity_sha256"],
                 }
             )
 
@@ -894,9 +1148,18 @@ def validate_task_manifest(
         raise ValueError(
             f"{path}: expected hyperparameter_source='optuna'."
         )
-    if not payload.get("hyperparameter_tuning_data_fingerprint_sha256"):
+    # The final Stage-03 provenance contract is the training identity plus
+    # exact prediction-file hashes. Do not require the legacy
+    # hyperparameter_tuning_data_fingerprint_sha256 field: it is not part of
+    # every final task manifest (notably some 1 h tasks), and the final
+    # training identity already binds the task to the canonical Optuna source.
+    if not payload.get("training_identity_sha256"):
         raise ValueError(
-            f"{path}: missing revised tuning-data fingerprint."
+            f"{path}: missing final Stage-03 training identity."
+        )
+    if not payload.get("prediction_files"):
+        raise ValueError(
+            f"{path}: missing final Stage-03 prediction provenance."
         )
     return payload
 
@@ -1350,8 +1613,112 @@ def main() -> int:
         ],
     )
 
+    output_files = {}
+    for name, path in (
+        ("bootstrap_metric_ci", output_dir / "bootstrap_metric_ci.csv"),
+        (
+            "paired_representation_comparisons",
+            output_dir / "paired_representation_comparisons.csv",
+        ),
+        (
+            "paired_landmark_common_riskset",
+            output_dir / "paired_landmark_common_riskset.csv",
+        ),
+    ):
+        if not path.is_file():
+            raise FileNotFoundError(path)
+        output_files[name] = {
+            "file": str(path),
+            "sha256": sha256_file(path),
+            "bytes": int(path.stat().st_size),
+        }
+
+    # Canonical prediction provenance, deduplicated across all downstream uses.
+    prediction_provenance = []
+    seen_prediction_sha = set()
+    for landmark, outcome, variant, cohort, path in available:
+        rec = verify_prediction_provenance(
+            modeling_root=modeling_root,
+            landmark=landmark,
+            outcome=outcome,
+            variant=variant,
+            cohort=cohort,
+            prediction_file=path,
+        )
+        if rec["prediction_file_sha256"] in seen_prediction_sha:
+            continue
+        seen_prediction_sha.add(rec["prediction_file_sha256"])
+        prediction_provenance.append(rec)
+
+    prediction_provenance = sorted(
+        prediction_provenance,
+        key=lambda r: (
+            r["outcome"],
+            r["cohort"],
+            r["landmark_hour"],
+            r["variant"],
+        ),
+    )
+
+    training_identity_sha256s = sorted(
+        {
+            str(r["training_identity_sha256"])
+            for r in prediction_provenance
+        }
+    )
+
+    training_summary_path = (
+        modeling_root / "reports" / "training_task_summary.csv"
+    )
+
+    protocol = {
+        "protocol_version": BOOTSTRAP_PROTOCOL_VERSION,
+        "bootstrap_unit": "patient",
+        "bootstrap_replicates": int(args.bootstrap),
+        "ci_method": "percentile",
+        "ci_percent": float(args.ci),
+        "seed": int(args.seed),
+        "mortality_probability": args.mortality_probability,
+        "reference_variant": args.reference_variant,
+        "common_risk_blocks": common_blocks,
+        "common_risk_variant": args.common_risk_variant,
+        "common_risk_pairs": args.common_risk_pairs,
+        "individual_ci_model_refitting": False,
+        "representation_comparison_resampling": (
+            "paired identical patient indices within landmark/cohort/outcome"
+        ),
+        "common_risk_definition": (
+            "intersection of patient_id+stay_id across all landmarks in block"
+        ),
+        "los_common_risk_target": (
+            "total_los_days = remaining_los_days + landmark_hours/24"
+        ),
+        "comparison_delta_convention": {
+            "same_landmark_representation": "reference_minus_comparator",
+            "cross_landmark_common_risk": "later_minus_earlier",
+        },
+        "multiplicity_adjustment": False,
+    }
+    protocol_sha256 = sha256_json_payload(protocol)
+
+    source_file = Path(__file__).resolve()
+    identity_payload = {
+        "identity_version": BOOTSTRAP_IDENTITY_VERSION,
+        "training_task_summary_sha256": sha256_file(training_summary_path),
+        "prediction_provenance": prediction_provenance,
+        "training_identity_sha256s": training_identity_sha256s,
+        "protocol_sha256": protocol_sha256,
+        "bootstrap_source_sha256": sha256_file(source_file),
+        "software_versions": software_versions(),
+        "output_files": output_files,
+    }
+    bootstrap_run_identity_sha256 = sha256_json_payload(identity_payload)
+
     manifest = {
+        "status": "PASS",
         "script": Path(__file__).name,
+        "bootstrap_source_file": str(source_file),
+        "bootstrap_source_sha256": sha256_file(source_file),
         "created_unix_time": time.time(),
         "modeling_root": str(modeling_root),
         "output_dir": str(output_dir),
@@ -1369,19 +1736,33 @@ def main() -> int:
         "common_risk_variant": args.common_risk_variant,
         "common_risk_pairs": args.common_risk_pairs,
         "canonical_training_tasks": int(len(training_summary)),
+        "training_task_summary_file": str(training_summary_path),
+        "training_task_summary_sha256": sha256_file(training_summary_path),
         "available_prediction_files": len(available),
+        "unique_prediction_files_bound": int(len(prediction_provenance)),
+        "unique_training_identities_bound": int(
+            len(training_identity_sha256s)
+        ),
+        "prediction_provenance": prediction_provenance,
+        "training_identity_sha256s": training_identity_sha256s,
+        "protocol": protocol,
+        "protocol_sha256": protocol_sha256,
+        "software_versions": software_versions(),
         "output_rows": {
             "bootstrap_metric_ci": int(len(individual_df)),
             "paired_representation_comparisons": int(len(representation_df)),
             "paired_landmark_common_riskset": int(len(common_df)),
         },
+        "output_files": output_files,
+        "bootstrap_run_identity_sha256": bootstrap_run_identity_sha256,
+        "bootstrap_run_identity_short": bootstrap_run_identity_sha256[:16],
         "notes": [
             "Bootstrap unit is the patient because 03_train_xgboost.py produces one row per patient.",
             "Same-landmark representation comparisons use identical resampled patient indices.",
             "Each common-risk landmark block uses its own intersection of patients present at every landmark in that block.",
             "For LOS common-risk comparisons, remaining LOS and its prediction are shifted by landmark/24 to total LOS, making the target identical across landmarks.",
             "No multiplicity-adjusted significance claims are made; CI-excluding-zero flags are descriptive estimation-based comparisons.",
-            "Only prediction files belonging to PASS tasks in the canonical Stage-03 training summary are eligible; stale files are excluded by design.",
+            "Every prediction parquet is SHA256-verified against its canonical Stage-03 task manifest before use.",
         ],
         "elapsed_seconds": float(time.time() - start),
     }
@@ -1393,6 +1774,15 @@ def main() -> int:
     )
     print(f"Wrote {manifest_path}", flush=True)
 
+    print(
+        f"Bootstrap run identity: {bootstrap_run_identity_sha256}",
+        flush=True,
+    )
+    print(
+        f"Bound prediction files: {len(prediction_provenance)} | "
+        f"Stage-03 training identities: {len(training_identity_sha256s)}",
+        flush=True,
+    )
     print(
         f"Done in {manifest['elapsed_seconds']:.1f} s",
         flush=True,
