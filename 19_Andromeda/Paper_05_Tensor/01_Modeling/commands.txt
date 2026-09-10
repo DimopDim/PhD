@@ -17,20 +17,40 @@ python 01_prepare_model_matrices.py --overwrite
 02_optuna_tune_xgboost
 =======================================================
 
-cd /home/ddimopoulos/Paper_05_Tensor/01_Modeling
+cd /home/ddimopoulos/Paper_05_Tensor
 
-python 02_optuna_tune_xgboost.py
+python 01_Modeling/02_optuna_tune_xgboost.py \
+  --tuning-landmark 24 \
+  --variants full,o1,o2,o3,o4,static \
+  --outcomes los,mortality \
+  --trials 40 \
+  --workers 6 \
+  --xgb-threads 10 \
+  --outer-folds 5 \
+  --inner-es-fraction 0.10 \
+  --num-boost-round 4000 \
+  --early-stopping-rounds 200 \
+  --seed 42
 
 
 =======================================================
 03_train_xgboost.py
 =======================================================
 
-cd /home/ddimopoulos/Paper_05_Tensor/01_Modeling
+cd /home/ddimopoulos/Paper_05_Tensor
 
-python 03_train_xgboost.py \
-  --workers 8 \
-  --xgb-threads 8
+python 01_Modeling/03_train_xgboost.py \
+  --landmarks 1,4,8,12,16,20,24,36,48 \
+  --variants full,o1,o2,o3,o4,static \
+  --outcomes los,mortality \
+  --workers 7 \
+  --xgb-threads 8 \
+  --num-boost-round 4000 \
+  --early-stopping-rounds 200 \
+  --inner-es-fraction 0.10 \
+  --params-source optuna \
+  --tuning-landmark 24 \
+  --seed 42
   
 
 =======================================================
@@ -56,13 +76,14 @@ python 05_plot_results.py
 cd /home/ddimopoulos/Paper_05_Tensor/01_Modeling
 
 
-python 06_shap_concepts.py \
+python 01_Modeling/06_shap_concepts.py \
   --landmarks 24 \
-  --variants full \
   --outcomes los,mortality \
+  --variants full \
   --cohorts mimic_test,eicu_external \
   --max-rows 2000 \
-  --top-n 20
+  --top-n 20 \
+  --seed 42
 
 
 =======================================================
@@ -83,8 +104,7 @@ python 07_bootstrap_landmark_analysis.py \
 
 
 
-
-python 07_bootstrap_landmark_analysis.py \
+python 01_Modeling/07_bootstrap_landmark_analysis.py \
   --bootstrap 2000 \
   --ci 95 \
   --seed 42 \
@@ -95,7 +115,7 @@ python 07_bootstrap_landmark_analysis.py \
   --common-risk-pairs all \
   --skip-individual-ci \
   --skip-representation-comparisons \
-  --output-dir bootstrap_results/commonrisk_static
+  --output-dir /home/ddimopoulos/Paper_05_Tensor/01_Modeling/bootstrap_results/commonrisk_static
 
 
 
@@ -130,8 +150,11 @@ python 09_make_common_riskset_figure.py
 
 cd /home/ddimopoulos/Paper_05_Tensor/01_Modeling
 
-python 10_run_baseline_models.py
-
+python 01_Modeling/10_run_baseline_models.py \
+  --folds 5 \
+  --seed 42 \
+  --overwrite
+  
 
 
 =======================================================
