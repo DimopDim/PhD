@@ -73,6 +73,8 @@ import argparse
 import hashlib
 import json
 import math
+import platform
+import shutil
 import time
 from pathlib import Path
 from typing import Dict, Iterable, List, Sequence, Tuple
@@ -80,6 +82,7 @@ from typing import Dict, Iterable, List, Sequence, Tuple
 import joblib
 import numpy as np
 import pandas as pd
+import sklearn
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression, Ridge
 from sklearn.metrics import (
@@ -99,6 +102,46 @@ from modeling_common import (
     load_model_matrix,
     matrix_cache_paths,
 )
+
+
+
+STAGE_PROTOCOL = "P5_BASELINES_FINAL_PROVENANCE_V1"
+TASK_IDENTITY_VERSION = "P5_BASELINE_TASK_IDENTITY_V1"
+RUN_IDENTITY_VERSION = "P5_BASELINE_RUN_IDENTITY_V1"
+
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def sha256_array(arr: np.ndarray) -> str:
+    arr = np.ascontiguousarray(arr)
+    h = hashlib.sha256()
+    h.update(str(arr.dtype).encode("utf-8"))
+    h.update(str(arr.shape).encode("utf-8"))
+    h.update(arr.tobytes())
+    return h.hexdigest()
+
+
+def canonical_sha256(payload: dict) -> str:
+    raw = json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def software_versions() -> dict:
+    return {
+        "python": platform.python_version(),
+        "numpy": np.__version__,
+        "pandas": pd.__version__,
+        "sklearn": sklearn.__version__,
+        "joblib": joblib.__version__,
+    }
 
 
 PROJECT_ROOT_DEFAULT = Path("/home/ddimopoulos/Paper_05_Tensor")
@@ -534,15 +577,30 @@ def run_task(
     manifest_path = output / "task_manifest.json"
     if manifest_path.is_file() and not overwrite:
         existing = json.loads(manifest_path.read_text(encoding="utf-8"))
-        if existing.get("status") == "PASS":
+        if (
+            existing.get("status") == "PASS"
+            and existing.get("protocol") == STAGE_PROTOCOL
+            and existing.get("baseline_task_identity_sha256")
+        ):
             return {
                 "landmark_hour": landmark,
                 "outcome": outcome,
                 "baseline": baseline,
                 "status": "PASS",
                 "skipped_existing": True,
+                "baseline_task_identity_sha256": existing[
+                    "baseline_task_identity_sha256"
+                ],
                 "elapsed_seconds": 0.0,
             }
+        raise RuntimeError(
+            f"{manifest_path}: existing output is not FINAL provenance-bound; "
+            "rerun with --overwrite."
+        )
+
+    if overwrite and output.exists():
+        shutil.rmtree(output)
+        output.mkdir(parents=True, exist_ok=True)
 
     train = load_split_matrix(modeling_root, landmark, "mimic", "train")
     test = load_split_matrix(modeling_root, landmark, "mimic", "test")
@@ -683,20 +741,79 @@ def run_task(
         cohort_frames=cohort_frames,
     )
 
-    input_fingerprint = sha256_text(
-        "|".join(
-            [
-                str(landmark),
-                outcome,
-                baseline,
-                ",".join(selected_names),
-                ",".join(train.patient_id[train_mask].astype(str)),
-            ]
+    # Exact provenance for the model-matrix carrier and the actual baseline inputs.
+    split_objects = {
+        "mimic/train": (train, train_mask, train_y_all),
+        "mimic/test": (test, test_mask, test_y_all),
+        "eicu/external": (external, ext_mask, ext_y_all),
+    }
+    input_bindings = {}
+    for split_key, (matrix_obj, mask, target_all) in split_objects.items():
+        db, split_name = split_key.split("/")
+        matrix_path, feature_path = matrix_cache_paths(
+            modeling_root,
+            landmark,
+            SOURCE_VARIANT,
+            db,
+            split_name,
         )
-    )
+        x_selected = matrix_obj.X[mask][:, selected_idx].astype(np.float64)
+        y_selected = np.asarray(target_all[mask], dtype=np.float64)
+        input_bindings[split_key] = {
+            "matrix_path": str(matrix_path),
+            "matrix_sha256": sha256_file(matrix_path),
+            "feature_file_path": str(feature_path),
+            "feature_file_sha256": sha256_file(feature_path),
+            "selected_X_sha256": sha256_array(x_selected),
+            "target_sha256": sha256_array(y_selected),
+            "patient_id_sha256": sha256_array(
+                matrix_obj.patient_id[mask].astype(str)
+            ),
+            "stay_id_sha256": sha256_array(
+                matrix_obj.stay_id[mask].astype(str)
+            ),
+        }
+
+    output_files = {}
+    for p in sorted(output.iterdir()):
+        if (
+            p.is_file()
+            and p.name not in {"task_manifest.json", "baseline_task_identity.json"}
+        ):
+            output_files[p.name] = {
+                "sha256": sha256_file(p),
+                "bytes": int(p.stat().st_size),
+            }
+
+    source_hash = sha256_file(Path(__file__).resolve())
+    identity_payload = {
+        "identity_version": TASK_IDENTITY_VERSION,
+        "protocol": STAGE_PROTOCOL,
+        "landmark_hour": landmark,
+        "outcome": outcome,
+        "baseline": baseline,
+        "source_variant": SOURCE_VARIANT,
+        "n_folds": n_folds,
+        "seed": seed,
+        "selected_features": (
+            selected_names if baseline == "demographic" else []
+        ),
+        "input_bindings": input_bindings,
+        "output_files": output_files,
+        "runner_source_sha256": source_hash,
+        "software_versions": software_versions(),
+    }
+    task_identity = canonical_sha256(identity_payload)
+
+    identity_document = dict(identity_payload)
+    identity_document["baseline_task_identity_sha256"] = task_identity
+    safe_json_dump(identity_document, output / "baseline_task_identity.json")
 
     manifest = {
         "script": Path(__file__).name,
+        "protocol": STAGE_PROTOCOL,
+        "identity_version": TASK_IDENTITY_VERSION,
+        "baseline_task_identity_sha256": task_identity,
         "landmark_hour": landmark,
         "outcome": outcome,
         "baseline": baseline,
@@ -706,7 +823,9 @@ def run_task(
         "development_prediction_type": "5-fold out-of-fold",
         "n_folds": n_folds,
         "seed": seed,
-        "selected_features": selected_names if baseline == "demographic" else [],
+        "selected_features": (
+            selected_names if baseline == "demographic" else []
+        ),
         "race_used": False,
         "clinical_predictors_used": False,
         "secondary_probability_calibration": False,
@@ -716,7 +835,10 @@ def run_task(
         "n_external_evaluable": int(ext_mask.sum()),
         "n_external_unknown_mortality": unknown_external_n,
         "model": model_meta,
-        "input_fingerprint_sha256": input_fingerprint,
+        "input_bindings": input_bindings,
+        "output_files": output_files,
+        "runner_source_sha256": source_hash,
+        "software_versions": software_versions(),
         "status": "PASS",
     }
     safe_json_dump(manifest, manifest_path)
@@ -735,6 +857,7 @@ def run_task(
         "feature_count": 0 if baseline == "null" else len(selected_names),
         "elapsed_seconds": elapsed,
         "metrics_rows": int(len(metrics_df)),
+        "baseline_task_identity_sha256": task_identity,
     }
 
 
@@ -852,8 +975,36 @@ def main() -> int:
     if not summary["status"].eq("PASS").all():
         raise RuntimeError("One or more baseline tasks failed.")
 
+    task_identities = (
+        summary["baseline_task_identity_sha256"]
+        .dropna()
+        .astype(str)
+        .tolist()
+    )
+    if len(task_identities) != expected_tasks:
+        raise RuntimeError(
+            f"Expected {expected_tasks} task identities, got {len(task_identities)}."
+        )
+    if len(set(task_identities)) != expected_tasks:
+        raise RuntimeError("Baseline task identities are not unique.")
+
+    summary_hash = sha256_file(summary_path)
+    source_hash = sha256_file(Path(__file__).resolve())
+    run_identity_payload = {
+        "identity_version": RUN_IDENTITY_VERSION,
+        "protocol": STAGE_PROTOCOL,
+        "task_identities": sorted(task_identities),
+        "baseline_task_summary_sha256": summary_hash,
+        "runner_source_sha256": source_hash,
+        "software_versions": software_versions(),
+    }
+    run_identity = canonical_sha256(run_identity_payload)
+
     manifest = {
         "script": Path(__file__).name,
+        "protocol": STAGE_PROTOCOL,
+        "identity_version": RUN_IDENTITY_VERSION,
+        "baseline_run_identity_sha256": run_identity,
         "modeling_root": str(modeling_root),
         "landmarks_hours": landmarks,
         "outcomes": outcomes,
@@ -862,6 +1013,10 @@ def main() -> int:
         "completed_tasks": int(len(summary)),
         "folds": args.folds,
         "seed": args.seed,
+        "task_identities": sorted(task_identities),
+        "baseline_task_summary_sha256": summary_hash,
+        "runner_source_sha256": source_hash,
+        "software_versions": software_versions(),
         "design": {
             "null_los": "MIMIC development median remaining LOS at each landmark",
             "null_mortality": "MIMIC development mortality prevalence at each landmark",
@@ -882,6 +1037,8 @@ def main() -> int:
     )
 
     print(f"Wrote {summary_path} | rows={len(summary)}")
+    print(f"Baseline run identity: {run_identity}")
+    print(f"Unique baseline task identities: {len(set(task_identities))}")
     print("PASS: Stage 10 baseline models complete.")
     return 0
 
